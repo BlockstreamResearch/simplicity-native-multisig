@@ -1,0 +1,25 @@
+# Rust build output
+target/
+
+# Simplex generated contract artifacts
+crates/contracts/src/artifacts/
+
+# Web/package output
+node_modules/
+dist/
+dist-ssr/
+
+# Local environment and tool state
+.env
+.env.*
+!.env.example
+.cache/
+logs/
+*.log
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

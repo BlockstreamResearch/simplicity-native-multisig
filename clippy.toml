@@ -1,0 +1,4 @@
+# This repo is brand new and the exported API is intentionally not stable yet. 
+# At this stage, we want Clippy to be useful even on public items in the contracts/bindings crates. 
+# Once the product API is real and consumers depend on it, it is reasonable to remove this or set it back to the default behavior.
+avoid-breaking-exported-api = false

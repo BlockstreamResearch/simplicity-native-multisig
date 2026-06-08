@@ -1,0 +1,41 @@
+[package]
+name = "simplicity-native-multisig-contracts"
+description = "Core Simplicity contracts for native multisig"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["simplicity", "simplex", "multisig", "liquid", "contracts"]
+categories = ["cryptography::cryptocurrencies"]
+
+[lints]
+workspace = true
+
+[package.metadata.rbmt.lint]
+# Current transitive splits come from Simplex and its Elements/Simplicity test stack.
+allowed_duplicates = [
+    "base64",
+    "bitflags",
+    "camino",
+    "either",
+    "getrandom",
+    "hashbrown",
+    "linux-raw-sys",
+    "memchr",
+    "regex-automata",
+    "rustix",
+    "serde_core",
+    "serde_json",
+    "windows-sys",
+    "winnow",
+    "wit-bindgen",
+]
+
+[dependencies]
+smplx-std = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1"

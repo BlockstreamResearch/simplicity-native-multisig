@@ -1,0 +1,41 @@
+[package]
+name = "simplicity-native-multisig-wasm"
+description = "WASM bindings for Simplicity Native Multisig"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["simplicity", "multisig", "wasm", "bindings"]
+categories = ["cryptography::cryptocurrencies", "wasm"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[package.metadata.rbmt.lint]
+# Current transitive splits come from Simplex plus wasm-bindgen/WASI support crates.
+allowed_duplicates = [
+    "base64",
+    "bitflags",
+    "camino",
+    "either",
+    "getrandom",
+    "hashbrown",
+    "linux-raw-sys",
+    "memchr",
+    "regex-automata",
+    "rustix",
+    "serde_core",
+    "serde_json",
+    "windows-sys",
+    "winnow",
+    "wit-bindgen",
+]
+
+[dependencies]
+contracts = { package = "simplicity-native-multisig-contracts", path = "../contracts" }
+wasm-bindgen = { workspace = true }

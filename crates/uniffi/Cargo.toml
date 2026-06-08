@@ -1,0 +1,41 @@
+[package]
+name = "simplicity-native-multisig-uniffi"
+description = "UniFFI bindings for Simplicity Native Multisig"
+version.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["simplicity", "multisig", "uniffi", "bindings"]
+categories = ["cryptography::cryptocurrencies"]
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[package.metadata.rbmt.lint]
+# Current transitive splits come from Simplex plus UniFFI's metadata pipeline.
+allowed_duplicates = [
+    "base64",
+    "bitflags",
+    "camino",
+    "either",
+    "getrandom",
+    "hashbrown",
+    "linux-raw-sys",
+    "memchr",
+    "regex-automata",
+    "rustix",
+    "serde_core",
+    "serde_json",
+    "windows-sys",
+    "winnow",
+    "wit-bindgen",
+]
+
+[dependencies]
+contracts = { package = "simplicity-native-multisig-contracts", path = "../contracts" }
+uniffi = { workspace = true }
