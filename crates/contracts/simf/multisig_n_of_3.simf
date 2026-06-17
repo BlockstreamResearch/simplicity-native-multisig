@@ -1,0 +1,94 @@
+fn ensure_zero_bit(bit: bool) { 
+    assert!(jet::eq_1(<bool>::into(bit), 0)); 
+}
+
+fn increment_checked(value: u32) -> u32 {
+    let (carry, next): (bool, u32) = jet::increment_32(value);
+    ensure_zero_bit(carry);
+    next
+}
+
+fn checksig(pk: Pubkey, sig: Signature) {
+    jet::bip_0340_verify((pk, jet::outputs_hash()), sig);
+}
+
+// vote_executable_leaf_hash is a tapleaf_hash of the vote executable leaf.
+fn script_hash_for_vote(vote_executable_leaf_hash: u256, participant_signature: Signature) -> u256 {    
+    let state_hash_ctx1: Ctx8 = jet::sha_256_ctx_8_init();
+    let state_hash_ctx2: Ctx8 = jet::sha_256_ctx_8_add_64(state_hash_ctx1, <Signature>::into(participant_signature));
+    let state_hash: u256 = jet::sha_256_ctx_8_finalize(state_hash_ctx2);
+
+    let tap_leaf: u256 = vote_executable_leaf_hash;
+    let state_ctx1: Ctx8 = jet::tapdata_init();
+    let state_ctx2: Ctx8 = jet::sha_256_ctx_8_add_32(state_ctx1, state_hash);
+    let state_leaf: u256 = jet::sha_256_ctx_8_finalize(state_ctx2);
+    let tap_node: u256 = jet::build_tapbranch(tap_leaf, state_leaf);
+
+    // Compute a taptweak using this.
+    let bip0341_key: u256 = 0x50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0;
+    let tweaked_key: u256 = jet::build_taptweak(bip0341_key, tap_node);
+    
+    // Turn the taptweak into a script hash
+    let hash_ctx1: Ctx8 = jet::sha_256_ctx_8_init();
+    let hash_ctx2: Ctx8 = jet::sha_256_ctx_8_add_2(hash_ctx1, 0x5120); // Segwit v1, length 32
+    let hash_ctx3: Ctx8 = jet::sha_256_ctx_8_add_32(hash_ctx2, tweaked_key);
+    jet::sha_256_ctx_8_finalize(hash_ctx3)
+}
+
+fn verify_vote_input(input_index: u32, vote_executable_leaf_hash: u256, participant_signature: Signature) {
+    let expected_script_hash: u256 = script_hash_for_vote(vote_executable_leaf_hash, participant_signature);
+    let actual_script_hash: u256 = unwrap(jet::input_script_hash(input_index));
+    assert!(jet::eq_256(actual_script_hash, expected_script_hash));
+}
+
+fn count_vote(
+    valid_votes: u32,
+    next_vote_input_index: u32,
+    participant: Pubkey,
+    maybe_vote: Option<(Signature, u256)>
+) -> (u32, u32) {
+    match maybe_vote {
+        Some(vote: (Signature, u256)) => {
+            let (participant_signature, vote_executable_leaf_hash): (Signature, u256) = vote;
+            verify_vote_input(next_vote_input_index, vote_executable_leaf_hash, participant_signature);
+            checksig(participant, participant_signature);
+
+            let new_valid_votes: u32 = increment_checked(valid_votes);
+            let new_vote_input_index: u32 = increment_checked(next_vote_input_index);
+            (new_valid_votes, new_vote_input_index)
+        }
+        None => (valid_votes, next_vote_input_index),
+    }
+}
+
+fn main() {
+    // TODO: compiler rejects the parametrized array. For generic usage we would epxect users to handle this limitation themselfs for now.
+    let participants: [Pubkey; 3] = param::PARTICIPANTS;
+    let threshold: u32 = param::THRESHOLD;
+    // A sanity check, to ensure that multisig is spendable
+    assert!(jet::le_32(1, threshold));
+    assert!(jet::le_32(threshold, 3));
+
+    // We need to ensure that during spending we have enough votes 
+    // if thresold is 3, anmd we have 3 participants, along side multisig covenant we MUST have at least 4 inputs 
+    let (carry, minimum_inputs_num): (bool, u32) = jet::add_32(threshold, 1);
+    ensure_zero_bit(carry);
+    assert!(jet::le_32(minimum_inputs_num, jet::num_inputs()));
+
+    // The user that construct transaction after the voting should recpect the order of participants declaration
+    // If threshold is lower than number of participants it should provide None in case of sig parameter 
+    let votes: [Option<(Signature, u256)>; 3] = witness::VOTES;
+    let [participant1, participant2, participant3]: [Pubkey; 3] = participants;
+    let [vote1, vote2, vote3]: [Option<(Signature, u256)>; 3] = votes;
+
+    // Verification is done in following order
+    // Starting with the input 1, if the signature for the input i is none, we skip it, otherwise 
+    // we calculate script_hash_for_vote and check if the script hash is the same 
+    // we check the signature against the participants[i], if it is correct the verification is done 
+    // the action is performed against all participants 
+    // We also should check that number of non-none signature is bigger or equal to the threshold 
+    let (valid_votes, next_vote_input_index): (u32, u32) = count_vote(0, 1, participant1, vote1);
+    let (valid_votes, next_vote_input_index): (u32, u32) = count_vote(valid_votes, next_vote_input_index, participant2, vote2);
+    let (valid_votes, _): (u32, u32) = count_vote(valid_votes, next_vote_input_index, participant3, vote3);
+    assert!(jet::le_32(threshold, valid_votes));
+}

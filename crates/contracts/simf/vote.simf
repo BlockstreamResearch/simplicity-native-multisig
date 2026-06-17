@@ -1,0 +1,31 @@
+// The purpose of this covenant to be spent alongside the multisig covenant.
+// 
+// The shape of the multisig covenant would be (inputs):
+// 
+// - input[0] = multisig covenant UTXO
+// - input[1] = vote UTXO 1 (this covenant)
+// - input[2] = vote UTXO 2 
+// 
+// The idea behind this covenant is to be spent alongside the multisig covenant only.
+// 
+// Its taproot will look like:
+//
+//              merkle_root
+//             /           \
+//            /             \
+//   executable leaf       hidden state leaf
+//   depth = 1             depth = 1
+//
+//   TapLeaf(              TapData(state)
+//     script = CMR,       = SHA256(
+//     version =             SHA256("TapData")
+//       Simplicity           || SHA256("TapData")
+//       leaf version         || SHA256(participant_signature)
+//   )                      )
+// 
+// The multisig covenant is going to compute the scripthash of the vote covenant and verify the signature provided in the witness data 
+// exists in the storage of this covenant.
+fn main() {
+    let target_multisig: u256 = unwrap(jet::input_script_hash(0));
+    assert!(jet::eq_256(target_multisig, param::TARGET_MULTISIG));
+}

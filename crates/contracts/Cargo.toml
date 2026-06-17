@@ -34,8 +34,9 @@ allowed_duplicates = [
 ]
 
 [dependencies]
-smplx-std = { workspace = true }
-thiserror = { workspace = true }
-
-[dev-dependencies]
 anyhow = "1"
+
+smplx-std = { workspace = true }
+
+[build-dependencies]
+smplx-build = "0.0.6"

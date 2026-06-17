@@ -1,6 +1,12 @@
 //! Core Simplicity contracts for native multisig.
 
 pub mod artifacts;
+pub mod constants;
+pub mod multisig_builder;
+pub mod scripts;
+pub mod vote_builder;
+
+pub(crate) mod runner;
 
 /// Workspace setup version exposed for binding smoke tests.
 pub const SETUP_VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -11,3 +11,8 @@ Contract sources live in `simf/`. Generated Rust artifacts are written to `src/a
 ```bash
 simplex build
 ```
+
+The current proof-of-concept contract is `simf/native_multisig_poc.simf`.
+It models a 2-of-3 covenant multisig where the only contract state is a `nonce`. 
+The signed proposal message is `jet::outputs_hash()`, and the state transition checks
+that the next covenant output commits to `nonce + 1`.

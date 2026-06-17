@@ -36,7 +36,7 @@ test-msrv:
 
 # Run Simplex contract tests.
 simplex-test:
-    cd crates/contracts && simplex test --nocapture
+    cd crates/contracts && simplex test --show-output --ignored
 
 # Run the local CI-equivalent check set.
 check: simplex-build fmtcheck clippy rbmt test simplex-test

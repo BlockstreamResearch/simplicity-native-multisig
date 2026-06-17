@@ -24,6 +24,6 @@ stable = "1.95.0"
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"
 
-smplx-std = "0.0.5"
+smplx-std = "0.0.6"
 uniffi = "0.31.1"
 wasm-bindgen = "0.2.122"
