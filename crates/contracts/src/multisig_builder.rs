@@ -84,7 +84,7 @@ mod test {
     use simplex::simplicityhl::elements::secp256k1_zkp::{Message, SECP256K1, SecretKey};
     use simplex::simplicityhl::elements::taproot::{ControlBlock, TapLeafHash};
     use simplex::simplicityhl::elements::{
-        AssetId, BlockHash, OutPoint, Script, Transaction, Txid,
+        AssetId, BlockHash, OutPoint, Script, Transaction, TxIn, TxOut, Txid,
     };
     use simplex::simplicityhl::num::U256;
     use simplex::simplicityhl::simplicity::jet::elements::ElementsEnv;
@@ -120,72 +120,90 @@ mod test {
         }
     }
 
-    fn outputs_hash(tx: &Transaction) -> sha256::Hash {
-        let mut output_asset_amounts_hash = sha256::Hash::engine();
-        let mut output_nonces_hash = sha256::Hash::engine();
-        let mut output_scripts_hash = sha256::Hash::engine();
-        let mut output_range_proofs_hash = sha256::Hash::engine();
-
-        for output in &tx.output {
-            input_confidential(
-                &mut output_asset_amounts_hash,
-                &encode::serialize(&output.asset),
-                0x0a,
-                0x0b,
-            );
-            input_confidential(
-                &mut output_asset_amounts_hash,
-                &encode::serialize(&output.value),
-                0x08,
-                0x09,
-            );
-            input_confidential(
-                &mut output_nonces_hash,
-                &encode::serialize(&output.nonce),
-                0x02,
-                0x03,
-            );
-
-            input_hash(
-                &mut output_scripts_hash,
-                &sha256::Hash::hash(output.script_pubkey.as_bytes()),
-            );
-
-            let range_proof = output
-                .witness
-                .rangeproof
-                .as_ref()
-                .map(|proof| proof.serialize())
-                .unwrap_or_default();
-            input_hash(
-                &mut output_range_proofs_hash,
-                &sha256::Hash::hash(&range_proof),
-            );
-        }
-
-        let mut outputs_hash = sha256::Hash::engine();
-        input_hash(
-            &mut outputs_hash,
-            &sha256::Hash::from_engine(output_asset_amounts_hash),
-        );
-        input_hash(
-            &mut outputs_hash,
-            &sha256::Hash::from_engine(output_nonces_hash),
-        );
-        input_hash(
-            &mut outputs_hash,
-            &sha256::Hash::from_engine(output_scripts_hash),
-        );
-        input_hash(
-            &mut outputs_hash,
-            &sha256::Hash::from_engine(output_range_proofs_hash),
-        );
-
-        sha256::Hash::from_engine(outputs_hash)
+    fn script_hash(script: &Script) -> sha256::Hash {
+        sha256::Hash::hash(script.as_bytes())
     }
 
-    #[test]
-    fn test_multisig_spend_1_of_3() -> anyhow::Result<()> {
+    fn tx_input_hash(input: &TxIn) -> sha256::Hash {
+        assert!(!input.is_pegin, "test helper does not support pegin inputs");
+
+        let mut engine = sha256::Hash::engine();
+        engine.input(&[0x00]);
+        engine.input(input.previous_output.txid.as_byte_array());
+        engine.input(&input.previous_output.vout.to_be_bytes());
+        engine.input(&input.sequence.to_consensus_u32().to_be_bytes());
+        engine.input(&[0x00]);
+        sha256::Hash::from_engine(engine)
+    }
+
+    fn tx_output_hash(output: &TxOut) -> sha256::Hash {
+        let mut engine = sha256::Hash::engine();
+        input_confidential(&mut engine, &encode::serialize(&output.asset), 0x0a, 0x0b);
+        input_confidential(&mut engine, &encode::serialize(&output.value), 0x08, 0x09);
+        input_confidential(&mut engine, &encode::serialize(&output.nonce), 0x02, 0x03);
+        input_hash(
+            &mut engine,
+            &sha256::Hash::hash(output.script_pubkey.as_bytes()),
+        );
+
+        let range_proof = output
+            .witness
+            .rangeproof
+            .as_ref()
+            .map(|proof| proof.serialize())
+            .unwrap_or_default();
+        input_hash(&mut engine, &sha256::Hash::hash(&range_proof));
+
+        sha256::Hash::from_engine(engine)
+    }
+
+    fn base_message(
+        tx: &Transaction,
+        input_scripts: &[Script],
+        current_script: &Script,
+    ) -> sha256::Hash {
+        let current_script_hash = script_hash(current_script);
+        let mut engine = sha256::Hash::engine();
+
+        for (index, input) in tx.input.iter().take(10).enumerate() {
+            let Some(input_script) = input_scripts.get(index) else {
+                continue;
+            };
+
+            if script_hash(input_script) == current_script_hash {
+                input_hash(&mut engine, &tx_input_hash(input));
+            }
+        }
+
+        for output in tx.output.iter().take(2) {
+            input_hash(&mut engine, &tx_output_hash(output));
+        }
+
+        sha256::Hash::from_engine(engine)
+    }
+
+    fn participant_message(
+        tx: &Transaction,
+        input_scripts: &[Script],
+        current_script: &Script,
+        vote_leaf_hash: TapLeafHash,
+    ) -> sha256::Hash {
+        let mut engine = sha256::Hash::engine();
+        engine.input(vote_leaf_hash.as_byte_array());
+        input_hash(
+            &mut engine,
+            &base_message(tx, input_scripts, current_script),
+        );
+        sha256::Hash::from_engine(engine)
+    }
+
+    fn run_multisig_spend_1_of_3(
+        multisig_input_count: usize,
+        proposed_output_count: usize,
+    ) -> anyhow::Result<()> {
+        assert!((1..=10).contains(&multisig_input_count));
+        assert!(proposed_output_count <= 2);
+
         let alice = Keypair::from_secret_key(&SECP256K1, &SecretKey::new(&mut thread_rng()));
         let bob = Keypair::from_secret_key(&SECP256K1, &SecretKey::new(&mut thread_rng()));
         let carol = Keypair::from_secret_key(&SECP256K1, &SecretKey::new(&mut thread_rng()));
@@ -204,50 +222,68 @@ mod test {
         let spend_info = super::taproot_spend_info(cmr)?;
         let script_pubkey = Script::new_v1_p2tr_tweaked(spend_info.output_key());
         let (multisig_script, _) = script_ver(cmr);
-        let vote_program = get_vote_program(multisig_script, true)?;
+        let vote_program =
+            get_vote_program(multisig_script, multisig_input_count.try_into()?, true)?;
         let vote_cmr = vote_program.commit().cmr();
         let (vote_script, vote_version) = script_ver(vote_cmr);
         let vote_leaf_hash = TapLeafHash::from_script(&vote_script, vote_version);
 
         // Build transaction
         let mut pst = PartiallySignedTransaction::new_v2();
-        let outpoint0 = OutPoint::new(Txid::from_slice(&[0; 32])?, 0);
-        let outpoint1 = OutPoint::new(Txid::from_slice(&[1; 32])?, 0);
-        pst.add_input(Input::from_prevout(outpoint0));
-        pst.add_input(Input::from_prevout(outpoint1));
-        pst.add_output(Output::new_explicit(
-            Script::new(),
-            0,
-            AssetId::default(),
-            None,
-        ));
+        for index in 0..multisig_input_count {
+            let outpoint = OutPoint::new(Txid::from_slice(&[index as u8; 32])?, 0);
+            pst.add_input(Input::from_prevout(outpoint));
+        }
+
+        let vote_outpoint = OutPoint::new(Txid::from_slice(&[0xff; 32])?, 0);
+        pst.add_input(Input::from_prevout(vote_outpoint));
+
+        for _ in 0..proposed_output_count {
+            pst.add_output(Output::new_explicit(
+                Script::new(),
+                0,
+                AssetId::default(),
+                None,
+            ));
+        }
 
         let control_block = spend_info
             .control_block(&script_ver(cmr))
             .expect("Must retrieve control block for the script path");
 
         let tx = Arc::new(pst.extract_tx()?);
+        let input_scripts = vec![script_pubkey.clone(); multisig_input_count];
 
-        let message = Message::from_digest(outputs_hash(&tx).to_byte_array());
+        let message = Message::from_digest(
+            participant_message(&tx, &input_scripts, &script_pubkey, vote_leaf_hash)
+                .to_byte_array(),
+        );
         let alice_signature = alice.sign_schnorr(message);
         let vote_spend_info = vote_taproot_spend_info(alice_signature, vote_cmr)?;
         let vote_script_pubkey = Script::new_v1_p2tr_tweaked(vote_spend_info.output_key());
 
         // Set up environment
+        let mut utxos = Vec::new();
+        for _ in 0..multisig_input_count {
+            utxos.push(
+                simplex::simplicityhl::simplicity::jet::elements::ElementsUtxo {
+                    script_pubkey: script_pubkey.clone(),
+                    asset: Asset::default(),
+                    value: Value::default(),
+                },
+            );
+        }
+        utxos.push(
+            simplex::simplicityhl::simplicity::jet::elements::ElementsUtxo {
+                script_pubkey: vote_script_pubkey,
+                asset: Asset::default(),
+                value: Value::default(),
+            },
+        );
+
         let env = ElementsEnv::new(
             tx,
-            vec![
-                simplex::simplicityhl::simplicity::jet::elements::ElementsUtxo {
-                    script_pubkey,
-                    asset: Asset::default(),
-                    value: Value::default(),
-                },
-                simplex::simplicityhl::simplicity::jet::elements::ElementsUtxo {
-                    script_pubkey: vote_script_pubkey,
-                    asset: Asset::default(),
-                    value: Value::default(),
-                },
-            ],
+            utxos,
             0,
             cmr,
             ControlBlock::from_slice(&control_block.serialize())?,
@@ -267,13 +303,29 @@ mod test {
 
         let votes = vec![alice_vote, empty_vote(), empty_vote()];
 
-        let witness = simplex::simplicityhl::WitnessValues::from(HashMap::from([(
-            WitnessName::from_str_unchecked("VOTES"),
-            simplex::simplicityhl::Value::array(votes, ResolvedType::option(vote_payload_type)),
-        )]));
+        let witness = simplex::simplicityhl::WitnessValues::from(HashMap::from([
+            (
+                WitnessName::from_str_unchecked("VOTES"),
+                simplex::simplicityhl::Value::array(votes, ResolvedType::option(vote_payload_type)),
+            ),
+            (
+                WitnessName::from_str_unchecked("TOTAL_PROPOSED_OUTPUTS"),
+                simplex::simplicityhl::Value::from(UIntValue::U16(10)),
+            ),
+        ]));
 
         let _ = run_program(&program, witness, &env, TrackerLogLevel::Trace)?;
 
         Ok(())
+    }
+
+    #[test]
+    fn test_multisig_spend_1_of_3() -> anyhow::Result<()> {
+        run_multisig_spend_1_of_3(1, 1)
+    }
+
+    #[test]
+    fn test_multisig_spend_two_inputs_two_outputs() -> anyhow::Result<()> {
+        run_multisig_spend_1_of_3(2, 2)
     }
 }

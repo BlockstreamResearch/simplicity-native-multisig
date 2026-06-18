@@ -1,14 +1,13 @@
-// The purpose of this covenant to be spent alongside the multisig covenant.
-// 
-// The shape of the multisig covenant would be (inputs):
-// 
+// The purpose of this covenant is to be spent alongside the multisig covenant.
+//
+// The multisig input shape is:
+//
 // - input[0] = multisig covenant UTXO
 // - input[1] = vote UTXO 1 (this covenant)
-// - input[2] = vote UTXO 2 
-// 
-// The idea behind this covenant is to be spent alongside the multisig covenant only.
-// 
-// Its taproot will look like:
+// - input[2] = vote UTXO 2
+// - ...
+//
+// Its taproot looks like:
 //
 //              merkle_root
 //             /           \
@@ -22,10 +21,38 @@
 //       Simplicity           || SHA256("TapData")
 //       leaf version         || SHA256(participant_signature)
 //   )                      )
-// 
-// The multisig covenant is going to compute the scripthash of the vote covenant and verify the signature provided in the witness data 
-// exists in the storage of this covenant.
+//
+// The multisig covenant MUST compute the script hash of the vote covenant and MUST verify that
+// the signature provided in witness data exists in this covenant's storage.
+fn ensure_zero_bit(bit: bool) {
+    assert!(jet::eq_1(<bool>::into(bit), 0));
+}
+
+fn increment_checked(value: u32) -> u32 {
+    let (carry, next): (bool, u32) = jet::increment_32(value);
+    ensure_zero_bit(carry);
+    next
+}
+
+fn count_target_multisig_input(multisig_input_count: u32, target_multisig: u256, index: u8) -> Either<u32, u32> {
+    let input_script_hash: Option<u256> = jet::input_script_hash(jet::left_pad_low_8_32(index));
+
+    match input_script_hash {
+        Some(input_script_hash: u256) => {
+            match jet::eq_256(input_script_hash, target_multisig) {
+                true => Right(increment_checked(multisig_input_count)),
+                false => Left(multisig_input_count),
+            }
+        },
+        None => Left(multisig_input_count),
+    }
+}
+
 fn main() {
-    let target_multisig: u256 = unwrap(jet::input_script_hash(0));
-    assert!(jet::eq_256(target_multisig, param::TARGET_MULTISIG));
+    let actual_multisig_inputs_count: u32 = match for_while::<count_target_multisig_input>(0, param::TARGET_MULTISIG) {
+        Left(multisig_input_count: u32) => multisig_input_count,
+        Right(multisig_input_count: u32) => multisig_input_count,
+    };
+
+    assert!(jet::eq_32(actual_multisig_inputs_count, param::EXPECTED_MULTISIG_INPUTS_COUNT));
 }

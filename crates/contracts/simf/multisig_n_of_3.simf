@@ -1,5 +1,24 @@
-fn ensure_zero_bit(bit: bool) { 
-    assert!(jet::eq_1(<bool>::into(bit), 0)); 
+// This covenant introduces Simplicity native multisig, which enables programmable signature verification.
+//
+// Coordination can happen both on-chain (via OP_RETURNs) and off-chain.
+// To spend a multisig, a participant MUST lock funds in the vote.simf covenant. In its taproot,
+// vote.simf contains a signature. See the message construction below for details.
+//
+// The direct benefit of this approach is programmable signatures.
+// Imagine that Alice, Bob, and an arbiter create a 2-of-3 multisig.
+// If Alice and Bob do not agree on the spend, Alice can ask the arbiter to be involved.
+// After reviewing the case, the arbiter may provide a signature in Alice's favor, but ask for a 1 BTC fee.
+// The arbiter creates a vote that checks whether one of the outputs actually pays that 1 BTC fee.
+// Alice cannot spend the multisig without paying it.
+//
+// This design also allows a third party to execute the multisig once enough participants have provided votes.
+// That executor can be rewarded with amounts left in the vote.simf inputs.
+//
+// Users pay more than they would with a trivial multisig, but they enable a richer feature set.
+// In theory, a vote.simf covenant can include blacklist checks, whitelist checks, or any other checks that use transaction introspection.
+
+fn ensure_zero_bit(bit: bool) {
+    assert!(jet::eq_1(<bool>::into(bit), 0));
 }
 
 fn increment_checked(value: u32) -> u32 {
@@ -8,12 +27,101 @@ fn increment_checked(value: u32) -> u32 {
     next
 }
 
-fn checksig(pk: Pubkey, sig: Signature) {
-    jet::bip_0340_verify((pk, jet::outputs_hash()), sig);
+// To collect all multisig input hashes, start at input index 0:
+// > for_while::<add_multisig_input_hash>((ctx, 0), jet::current_script_hash());
+//
+// Continue iterating over the inputs until the script hash no longer matches.
+// This also enforces that multisig inputs start at index 0.
+// If the loop runs out of inputs, the covenant fails on the check in main:
+// > let (carry, minimum_inputs_num): (bool, u32) = jet::add_32(threshold, multisig_input_count);
+// > ensure_zero_bit(carry);
+// > assert!(jet::le_32(minimum_inputs_num, jet::num_inputs()));
+fn add_multisig_input_hash(acc: (Ctx8, u32), current_script_hash: u256, index: u8) -> Either<(Ctx8, u32), (Ctx8, u32)> {
+    let (ctx, multisig_input_count): (Ctx8, u32) = acc;
+
+    let index: u32 = jet::left_pad_low_8_32(index);
+    let input_script_hash: Option<u256> = jet::input_script_hash(index);
+
+    match input_script_hash {
+        Some(input_script_hash: u256) => {
+            match jet::eq_256(input_script_hash, current_script_hash) {
+                true => {
+                    let next_ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, unwrap(jet::input_hash(index)));
+                    let next_multisig_input_count: u32 = increment_checked(multisig_input_count);
+                    Right((next_ctx, next_multisig_input_count))
+                },
+                false => Left((ctx, multisig_input_count)),
+            }
+        },
+        None => Left((ctx, multisig_input_count)),
+    }
 }
 
+// The total number of proposed outputs is controlled by the witness parameter.
+// Proposed outputs also begin at index 0.
+fn add_proposed_output_hash(ctx: Ctx8, total_proposed: u16, index: u16) -> Either<Ctx8, Ctx8> {
+    let output_hash: Option<u256> = jet::output_hash(jet::left_pad_low_16_32(index));
+
+    match output_hash {
+        Some(output_hash: u256) => {
+            match jet::eq_16(index, total_proposed) {
+                false => Right(jet::sha_256_ctx_8_add_32(ctx, output_hash)),
+                true => Left(ctx),
+            }
+        },
+        // If we run out of outputs, the proposer decided to enforce fees and change as well.
+        // That also requires strict amounts in the votes.
+        None => Left(ctx),
+    }
+}
+
+// Build the base message that participants sign.
+//
+// The message signed by each participant includes all multisig inputs, i.e. jet::input_hash(i).
+//
+// It also includes outputs proposed by the participant, i.e. jet::output_hash(i).
+// In theory, there can be 2^16 - 1 outputs.
+//
+// Therefore, the base message is:
+// SHA256(jet::input_hash(0) || ... || jet::input_hash(total_multisig_inputs) || jet::output_hash(0) || ... || jet::output_hash(witness::TOTAL_PROPOSED_OUTPUTS))
+fn base_message_and_input_count(total_proposed_outputs: u16) -> (u256, u32) {
+    let ctx: Ctx8 = jet::sha_256_ctx_8_init();
+    let input_result: Either<(Ctx8, u32), (Ctx8, u32)> = for_while::<add_multisig_input_hash>((ctx, 0), jet::current_script_hash());
+
+    let (ctx, multisig_input_count): (Ctx8, u32) = unwrap_left::<(Ctx8, u32)>(input_result);
+    let output_result: Either<Ctx8, Ctx8> = for_while::<add_proposed_output_hash>(ctx, total_proposed_outputs);
+
+    let ctx: Ctx8 = unwrap_left::<Ctx8>(output_result);
+
+    (jet::sha_256_ctx_8_finalize(ctx), multisig_input_count)
+}
+
+// Build the final message that is signed by the participant.
+//
+// To lock in the prechecks that vote.simf could include, every participant signs:
+// SHA256(vote_executable_leaf_hash || base_message)
+//
+// The vote_executable_leaf_hash identifies that participant's own vote.simf executable leaf.
+// Participants do not need to sign CMRs of other participants' vote.simf programs.
+//
+// With this structure, the signature locks in the inputs being spent, the output shape,
+// and the additional checks that vote.simf should perform.
+fn participant_message(vote_executable_leaf_hash: u256, base_message: u256) -> u256 {
+    let ctx: Ctx8 = jet::sha_256_ctx_8_init();
+    let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, vote_executable_leaf_hash);
+    let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, base_message);
+    jet::sha_256_ctx_8_finalize(ctx)
+}
+
+fn checksig(pk: Pubkey, sig: Signature, vote_executable_leaf_hash: u256, base_message: u256) {
+    jet::bip_0340_verify((pk, participant_message(vote_executable_leaf_hash, base_message)), sig);
+}
+
+// This function verifies that the proved signature is committed on-chain through the intended vote.simf program.
+// The intended vote.simf program is the one signed by the participant.
+//
 // vote_executable_leaf_hash is a tapleaf_hash of the vote executable leaf.
-fn script_hash_for_vote(vote_executable_leaf_hash: u256, participant_signature: Signature) -> u256 {    
+fn verify_vote_input(input_index: u32, vote_executable_leaf_hash: u256, participant_signature: Signature) {
     let state_hash_ctx1: Ctx8 = jet::sha_256_ctx_8_init();
     let state_hash_ctx2: Ctx8 = jet::sha_256_ctx_8_add_64(state_hash_ctx1, <Signature>::into(participant_signature));
     let state_hash: u256 = jet::sha_256_ctx_8_finalize(state_hash_ctx2);
@@ -24,71 +132,94 @@ fn script_hash_for_vote(vote_executable_leaf_hash: u256, participant_signature: 
     let state_leaf: u256 = jet::sha_256_ctx_8_finalize(state_ctx2);
     let tap_node: u256 = jet::build_tapbranch(tap_leaf, state_leaf);
 
-    // Compute a taptweak using this.
+    // Compute a taptweak from this tap tree.
     let bip0341_key: u256 = 0x50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0;
     let tweaked_key: u256 = jet::build_taptweak(bip0341_key, tap_node);
-    
-    // Turn the taptweak into a script hash
+
+    // Turn the taptweak into a script hash.
     let hash_ctx1: Ctx8 = jet::sha_256_ctx_8_init();
     let hash_ctx2: Ctx8 = jet::sha_256_ctx_8_add_2(hash_ctx1, 0x5120); // Segwit v1, length 32
     let hash_ctx3: Ctx8 = jet::sha_256_ctx_8_add_32(hash_ctx2, tweaked_key);
-    jet::sha_256_ctx_8_finalize(hash_ctx3)
+    let expected_vote_script_hash: u256 = jet::sha_256_ctx_8_finalize(hash_ctx3);
+
+    assert!(jet::eq_256(unwrap(jet::input_script_hash(input_index)), expected_vote_script_hash));
 }
 
-fn verify_vote_input(input_index: u32, vote_executable_leaf_hash: u256, participant_signature: Signature) {
-    let expected_script_hash: u256 = script_hash_for_vote(vote_executable_leaf_hash, participant_signature);
-    let actual_script_hash: u256 = unwrap(jet::input_script_hash(input_index));
-    assert!(jet::eq_256(actual_script_hash, expected_script_hash));
-}
+// For every vote entry, verify the presence of the on-chain commitment and the correctness of the signed message.
+fn count_vote_entry(
+    entry: (Pubkey, Option<(Signature, u256)>),
+    acc: (u32, u32, u256)
+) -> (u32, u32, u256) {
+    let (participant, maybe_vote): (Pubkey, Option<(Signature, u256)>) = entry;
+    let (valid_votes, next_vote_input_index, base_message): (u32, u32, u256) = acc;
 
-fn count_vote(
-    valid_votes: u32,
-    next_vote_input_index: u32,
-    participant: Pubkey,
-    maybe_vote: Option<(Signature, u256)>
-) -> (u32, u32) {
-    match maybe_vote {
+    let (valid_votes, next_vote_input_index): (u32, u32) = match maybe_vote {
         Some(vote: (Signature, u256)) => {
             let (participant_signature, vote_executable_leaf_hash): (Signature, u256) = vote;
-            verify_vote_input(next_vote_input_index, vote_executable_leaf_hash, participant_signature);
-            checksig(participant, participant_signature);
 
-            let new_valid_votes: u32 = increment_checked(valid_votes);
-            let new_vote_input_index: u32 = increment_checked(next_vote_input_index);
-            (new_valid_votes, new_vote_input_index)
+            verify_vote_input(next_vote_input_index, vote_executable_leaf_hash, participant_signature);
+            checksig(participant, participant_signature, vote_executable_leaf_hash, base_message);
+
+            (increment_checked(valid_votes), increment_checked(next_vote_input_index))
         }
         None => (valid_votes, next_vote_input_index),
-    }
+    };
+
+    (valid_votes, next_vote_input_index, base_message)
 }
 
-fn main() {
-    // TODO: compiler rejects the parametrized array. For generic usage we would epxect users to handle this limitation themselfs for now.
-    let participants: [Pubkey; 3] = param::PARTICIPANTS;
-    let threshold: u32 = param::THRESHOLD;
-    // A sanity check, to ensure that multisig is spendable
-    assert!(jet::le_32(1, threshold));
-    assert!(jet::le_32(threshold, 3));
-
-    // We need to ensure that during spending we have enough votes 
-    // if thresold is 3, anmd we have 3 participants, along side multisig covenant we MUST have at least 4 inputs 
-    let (carry, minimum_inputs_num): (bool, u32) = jet::add_32(threshold, 1);
-    ensure_zero_bit(carry);
-    assert!(jet::le_32(minimum_inputs_num, jet::num_inputs()));
-
-    // The user that construct transaction after the voting should recpect the order of participants declaration
-    // If threshold is lower than number of participants it should provide None in case of sig parameter 
-    let votes: [Option<(Signature, u256)>; 3] = witness::VOTES;
+fn count_votes(
+    participants: [Pubkey; 3],
+    votes: [Option<(Signature, u256)>; 3],
+    multisig_input_count: u32,
+    base_message: u256
+) -> u32 {
     let [participant1, participant2, participant3]: [Pubkey; 3] = participants;
     let [vote1, vote2, vote3]: [Option<(Signature, u256)>; 3] = votes;
 
-    // Verification is done in following order
-    // Starting with the input 1, if the signature for the input i is none, we skip it, otherwise 
-    // we calculate script_hash_for_vote and check if the script hash is the same 
-    // we check the signature against the participants[i], if it is correct the verification is done 
-    // the action is performed against all participants 
-    // We also should check that number of non-none signature is bigger or equal to the threshold 
-    let (valid_votes, next_vote_input_index): (u32, u32) = count_vote(0, 1, participant1, vote1);
-    let (valid_votes, next_vote_input_index): (u32, u32) = count_vote(valid_votes, next_vote_input_index, participant2, vote2);
-    let (valid_votes, _): (u32, u32) = count_vote(valid_votes, next_vote_input_index, participant3, vote3);
+    let entries: [(Pubkey, Option<(Signature, u256)>); 3] = [
+        (participant1, vote1),
+        (participant2, vote2),
+        (participant3, vote3),
+    ];
+
+    let (valid_votes, _, _): (u32, u32, u256) = array_fold::<count_vote_entry, 3>(
+        entries,
+        (0, multisig_input_count, base_message)
+    );
+
+    valid_votes
+}
+
+fn main() {
+    // TODO: The compiler rejects the parameterized array.
+    // For generic usage, users are expected to handle this limitation themselves for now.
+    let participants: [Pubkey; 3] = param::PARTICIPANTS;
+    let threshold: u32 = param::THRESHOLD;
+    // Sanity checks to ensure that the multisig is spendable.
+    assert!(jet::le_32(1, threshold));
+    assert!(jet::le_32(threshold, 3));
+
+    let (base_message, multisig_input_count): (u256, u32) = base_message_and_input_count(witness::TOTAL_PROPOSED_OUTPUTS);
+    // Another sanity check: enforce that multisig covenant inputs start at index 0.
+    // This fails if the UTXO at index 0 is not a multisig.
+    assert!(jet::le_32(1, multisig_input_count));
+
+    // We need to ensure that during spending we have enough votes.
+    let (carry, minimum_inputs_num): (bool, u32) = jet::add_32(threshold, multisig_input_count);
+    ensure_zero_bit(carry);
+    assert!(jet::le_32(minimum_inputs_num, jet::num_inputs()));
+
+    // The user who constructs the transaction after voting should respect the participant declaration order.
+    // If the threshold is lower than the number of participants, it should provide None for missing signatures.
+    let votes: [Option<(Signature, u256)>; 3] = witness::VOTES;
+
+    // Verification is done in the following order.
+    // Starting after the multisig inputs, if the signature for input i is None, skip it.
+    // Otherwise, calculate the expected vote script hash and check that it matches.
+    // Then check the signature against participants[i].
+    // This action is performed for all participants.
+    // Finally, check that the number of non-None signatures is greater than or equal to the threshold.
+    let valid_votes: u32 = count_votes(participants, votes, multisig_input_count, base_message);
     assert!(jet::le_32(threshold, valid_votes));
 }
