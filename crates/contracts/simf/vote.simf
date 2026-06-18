@@ -24,6 +24,51 @@
 //
 // The multisig covenant MUST compute the script hash of the vote covenant and MUST verify that
 // the signature provided in witness data exists in this covenant's storage.
+//
+// # Uncounted vote inputs
+//
+// This covenant authorizes the current vote input by checking that the transaction has the
+// expected target multisig prefix count. It does not prove that the current vote input is one
+// of the vote inputs verified by the multisig covenant through witness::VOTES.
+//
+// Without a matching multisig-side check, once the multisig threshold is satisfied, an executor
+// could append another same-target vote UTXO with the same expected multisig input count and sweep
+// its value, even if that vote was not listed in witness::VOTES.
+//
+// This means that the value held by this covenant is not bounded by the participant signature.
+// In this implementation, the stricter multisig-side guard is intentionally left commented out
+// to allow more flexible transaction features. This makes unused vote UTXO sweeping an explicit
+// design decision rather than an accidental assumption.
+//
+// > Voters who do not want their vote UTXO value to matter can vote with
+// > throwaway assets that hold no value on Liquid (or using dust amounts of BTC), 
+// > making unrelated vote UTXO sweeping economically worthless.
+//
+// To protect vote UTXO value, implementations must enforce vote input membership on-chain.
+// A stricter protocol can combine both of these checks:
+//
+// 1. In this covenant, require jet::current_index() to be inside the vote input range immediately
+//    after the target multisig prefix:
+//
+//    ```
+//    // Calculate the index window checked by the multisig covenant.
+//    // The window is [actual_multisig_inputs_count, actual_multisig_inputs_count + participants_count).
+//    let (carry, minimum_inputs_num): (bool, u32) = jet::add_32(3, actual_multisig_inputs_count);
+//    ensure_zero_bit(carry);
+//
+//    // Check that the vote covenant index is below the upper bound.
+//    assert!(jet::lt_32(jet::current_index(), minimum_inputs_num));
+//    // Check that the vote covenant index is at or after the multisig input prefix.
+//    assert!(jet::le_32(actual_multisig_inputs_count, jet::current_index()));
+//    ```
+//
+// 2. In the multisig covenant, make count_votes return the final next_vote_input_index and assert
+//    that there are no extra inputs after the counted vote sequence, for example:
+//    `next_vote_input_index == jet::num_inputs()`.
+//
+// If unrelated extra inputs must be allowed, each vote should instead be bound to an exact
+// participant slot so this covenant and the multisig covenant agree on the same input index.
+
 fn ensure_zero_bit(bit: bool) {
     assert!(jet::eq_1(<bool>::into(bit), 0));
 }

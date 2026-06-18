@@ -173,7 +173,7 @@ fn count_votes(
     votes: [Option<(Signature, u256)>; 3],
     multisig_input_count: u32,
     base_message: u256
-) -> u32 {
+) -> (u32, u32) {
     let [participant1, participant2, participant3]: [Pubkey; 3] = participants;
     let [vote1, vote2, vote3]: [Option<(Signature, u256)>; 3] = votes;
 
@@ -183,12 +183,12 @@ fn count_votes(
         (participant3, vote3),
     ];
 
-    let (valid_votes, _, _): (u32, u32, u256) = array_fold::<count_vote_entry, 3>(
+    let (valid_votes, next_vote_input_index, _): (u32, u32, u256) = array_fold::<count_vote_entry, 3>(
         entries,
         (0, multisig_input_count, base_message)
     );
 
-    valid_votes
+    (valid_votes, next_vote_input_index)
 }
 
 fn main() {
@@ -204,6 +204,8 @@ fn main() {
     // Another sanity check: enforce that multisig covenant inputs start at index 0.
     // This fails if the UTXO at index 0 is not a multisig.
     assert!(jet::le_32(1, multisig_input_count));
+    // Ensure that the current multisig input is included in the signed base message.
+    assert!(jet::lt_32(jet::current_index(), multisig_input_count));
 
     // We need to ensure that during spending we have enough votes.
     let (carry, minimum_inputs_num): (bool, u32) = jet::add_32(threshold, multisig_input_count);
@@ -220,6 +222,11 @@ fn main() {
     // Then check the signature against participants[i].
     // This action is performed for all participants.
     // Finally, check that the number of non-None signatures is greater than or equal to the threshold.
-    let valid_votes: u32 = count_votes(participants, votes, multisig_input_count, base_message);
+    let (valid_votes, next_vote_input_index): (u32, u32) = count_votes(participants, votes, multisig_input_count, base_message);
     assert!(jet::le_32(threshold, valid_votes));
+
+    // To address "Uncounted vote inputs", enable the following check.
+    // It is intentionally left commented out to allow more flexible transaction features.
+    // See the "Uncounted vote inputs" section in vote.simf for the security trade-off.
+    // assert!(jet::eq_32(next_vote_input_index, jet::num_inputs()));
 }
