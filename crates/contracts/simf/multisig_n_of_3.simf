@@ -27,6 +27,14 @@ fn increment_checked(value: u32) -> u32 {
     next
 }
 
+fn ensure_distinct_participants(participants: [Pubkey; 3]) {
+    let [participant1, participant2, participant3]: [Pubkey; 3] = participants;
+
+    ensure_zero_bit(jet::eq_256(participant1, participant2));
+    ensure_zero_bit(jet::eq_256(participant1, participant3));
+    ensure_zero_bit(jet::eq_256(participant2, participant3));
+}
+
 // To collect all multisig input hashes, start at input index 0:
 // > for_while::<add_multisig_input_hash>((ctx, 0), jet::current_script_hash());
 //
@@ -195,6 +203,8 @@ fn main() {
     // TODO: The compiler rejects the parameterized array.
     // For generic usage, users are expected to handle this limitation themselves for now.
     let participants: [Pubkey; 3] = param::PARTICIPANTS;
+    ensure_distinct_participants(participants);
+
     let threshold: u32 = param::THRESHOLD;
     // Sanity checks to ensure that the multisig is spendable.
     assert!(jet::le_32(1, threshold));
