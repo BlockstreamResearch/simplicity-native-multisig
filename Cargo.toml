@@ -2,7 +2,6 @@
 resolver = "3"
 members = [
     "crates/contracts",
-    "crates/uniffi",
     "crates/wasm",
 ]
 
