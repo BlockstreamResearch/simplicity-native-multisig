@@ -1,0 +1,30 @@
+{
+  "name": "simplicity-native-multisig-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:contracts": "wasm-pack build ../crates/wasm --target web --out-dir ../../web/src/generated/contracts --release",
+    "predev": "npm run build:contracts",
+    "dev": "vite --host 127.0.0.1",
+    "prebuild": "npm run build:contracts",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test:ui": "playwright test"
+  },
+  "dependencies": {
+    "lucide-react": "^0.562.0",
+    "lwk_wasm": "^0.18.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "vite-plugin-wasm": "^3.6.0"
+  }
+}

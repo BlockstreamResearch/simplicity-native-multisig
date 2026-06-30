@@ -1,0 +1,118 @@
+:root {
+  color: #18201e;
+  background: #f6f8f7;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  min-height: 36px;
+  border: 1px solid #d7dfdc;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2a27;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 640;
+}
+
+button:hover:not(:disabled) {
+  border-color: #97aaa3;
+}
+
+button:disabled {
+  color: #9aa7a2;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: #145c51;
+  border-color: #145c51;
+  color: #ffffff;
+}
+
+button.primary:disabled {
+  background: #eef2f0;
+  border-color: #d7dfdc;
+  color: #9aa7a2;
+}
+
+button.full {
+  width: 100%;
+}
+
+.button-link {
+  min-height: 36px;
+  border: 1px solid #d7dfdc;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2a27;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 640;
+  text-decoration: none;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  border: 1px solid #d7dfdc;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2a27;
+  padding: 9px 10px;
+  outline: none;
+  font-size: 13px;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.45;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, ui-monospace, monospace;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: #66736f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+a {
+  color: #126d61;
+  display: inline-flex;
+  align-items: center;
+}
+

@@ -1,0 +1,72 @@
+@media (max-width: 1080px) {
+  .summary-grid,
+  .content-grid,
+  .setup-grid,
+  .network-grid,
+  .proposal-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .demo-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace,
+  .side-rail {
+    padding: 16px;
+  }
+
+  .topbar,
+  .topbar-actions,
+  .empty-state {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tabs,
+  .segmented,
+  .transaction-search {
+    width: 100%;
+  }
+
+  .tabs,
+  .segmented {
+    flex-wrap: wrap;
+  }
+
+  .tabs button,
+  .segmented button {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+
+  .summary-grid,
+  .content-grid,
+  .setup-grid,
+  .network-grid,
+  .proposal-cards,
+  .proposal-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .funding-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .output-row,
+  .proposal-head,
+  .execute-head,
+  .executor-controls,
+  .vote-row,
+  .proposal-voter,
+  .announcement-row {
+    grid-template-columns: 1fr;
+  }
+
+  .transaction-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
