@@ -165,7 +165,7 @@ impl MultisigBuilder {
     /// Script pubkey that locks funds to this multisig covenant.
     ///
     /// This could be used for indexing of the covenant using the following functionality from the LWK:
-    /// ```rust,no_run
+    /// ```rust,ignore
     /// let multisig_builder = MultisigBuilder::new(...);
     /// let multisig_script = multisig_builder.script_pubkey()?;
     /// let desc_str = format!(":{}", multisig_script.to_hex());

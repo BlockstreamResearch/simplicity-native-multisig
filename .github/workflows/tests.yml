@@ -56,8 +56,10 @@ jobs:
         run: simplex build
 
       - name: Run Rust tests
-        run: cargo test --workspace --all-features
+        run: |
+          cargo test --workspace --all-features --lib
+          cargo test --workspace --all-features --doc
 
       - name: Run Simplex tests
         working-directory: crates/contracts
-        run: simplex test --nocapture
+        run: simplex test
