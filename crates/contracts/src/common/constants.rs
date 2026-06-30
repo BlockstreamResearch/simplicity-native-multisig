@@ -1,6 +1,7 @@
-use simplex::simplicityhl::elements::bitcoin::secp256k1;
+use simplicityhl::elements::bitcoin::secp256k1;
 
 /// The unspendable internal key specified in BIP-0341.
+#[must_use]
 pub fn unspendable_internal_key() -> secp256k1::XOnlyPublicKey {
     secp256k1::XOnlyPublicKey::from_slice(&[
         0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54, 0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a,

@@ -3,7 +3,7 @@
 [build]
 src_dir = "./simf"
 simf_files = ["*.simf"]
-out_dir = "./src/artifacts"
+out_dir = "../../target/simplex-artifacts/contracts"
 
 [regtest]
 mnemonic = "exist carry drive collect lend cereal occur much tiger just involve mean"

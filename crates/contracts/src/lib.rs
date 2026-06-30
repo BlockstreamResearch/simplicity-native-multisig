@@ -1,28 +1,12 @@
 //! Core Simplicity contracts for native multisig.
 
-pub mod artifacts;
-pub mod constants;
-pub mod multisig_builder;
-pub mod scripts;
-pub mod vote_builder;
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::too_many_lines
+)]
 
-pub(crate) mod runner;
-
-/// Workspace setup version exposed for binding smoke tests.
-pub const SETUP_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-/// Returns the current setup version.
-#[must_use]
-pub const fn setup_version() -> &'static str {
-    SETUP_VERSION
-}
-
-#[cfg(test)]
-mod tests {
-    use super::setup_version;
-
-    #[test]
-    fn exposes_setup_version() {
-        assert_eq!(setup_version(), "0.1.0");
-    }
-}
+pub mod common;
+pub mod multisig;
+pub mod sdk;
+pub mod vote;

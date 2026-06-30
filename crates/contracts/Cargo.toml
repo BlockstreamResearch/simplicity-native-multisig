@@ -15,8 +15,7 @@ workspace = true
 
 [package.metadata.rbmt.lint]
 # Current transitive splits come from Simplex and its Elements/Simplicity test stack.
-allowed_duplicates = [
-    "base64",
+allowed_duplicates = ["base64",
     "bitflags",
     "camino",
     "either",
@@ -35,8 +34,10 @@ allowed_duplicates = [
 
 [dependencies]
 anyhow = "1"
+hex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+simplicityhl = { workspace = true }
 
+[dev-dependencies]
 smplx-std = { workspace = true }
-
-[build-dependencies]
-smplx-build = "0.0.6"
