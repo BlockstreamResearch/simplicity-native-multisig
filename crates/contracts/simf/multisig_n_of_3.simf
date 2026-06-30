@@ -200,7 +200,7 @@ fn count_votes(
 }
 
 fn main() {
-    // TODO: The compiler rejects the parameterized array.
+    // Compiler note: the compiler rejects the parameterized array.
     // For generic usage, users are expected to handle this limitation themselves for now.
     let participants: [Pubkey; 3] = param::PARTICIPANTS;
     ensure_distinct_participants(participants);
