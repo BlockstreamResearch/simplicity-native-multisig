@@ -1,9 +1,6 @@
 # Rust build output
 target/
 
-# Simplex generated contract artifacts
-crates/contracts/src/artifacts/
-
 # Web/package output
 node_modules/
 dist/
