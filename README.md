@@ -3,23 +3,22 @@
 ## Repository layout
 
 - `crates/contracts` - core Simplicity contracts and Rust contract helpers.
-- `crates/uniffi` - native bindings surface for mobile and desktop consumers.
 - `crates/wasm` - WebAssembly bindings surface for browser and JavaScript consumers.
 - `web` - web interface.
 
 ## Tooling
 
-This workspace uses Rust 2024 and Simplex `v0.0.5`.
+This workspace uses Rust 2024 and Simplex `v0.0.6`.
 
 Install Simplex:
 
 ```bash
 curl -fsSL https://smplx.simplicity-lang.org | bash
-simplexup --install v0.0.5
-simplexup --use v0.0.5
+simplexup --install v0.0.6
+simplexup --use v0.0.6
 ```
 
-Generate contract artifacts before full workspace checks:
+Generate ignored contract artifacts for inspection under `target/simplex-artifacts/contracts`:
 
 ```bash
 cd crates/contracts
@@ -37,5 +36,5 @@ cargo test --workspace --all-features
 Run Simplex contract tests from `crates/contracts`:
 
 ```bash
-simplex test --nocapture
+simplex test
 ```
