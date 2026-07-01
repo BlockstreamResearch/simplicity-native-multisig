@@ -26,6 +26,7 @@ SimplicityByteDecoderCmrProofs.v
 SimplicityByteDecoder.v
 ElementsJetCmr.v
 CmrWellFormed.v
+FoundationCmrAlgebra.v
 TypedBridgeCore.v
 TypedBridgeEvidence.v
 TypedBridge.v
@@ -55,6 +56,7 @@ CompiledMultisigTypedExampleTypeTable3.v
 CompiledMultisigTypedExampleTypeTable4.v
 CompiledMultisigTypedExampleData.v
 CompiledMultisigTypedExample.v
+CompiledMultisigFoundationCmrEvidence.v
 FoundationTypes.v
 CompiledMultisigFoundationTypes.v
 FoundationCoreTypes.v
@@ -64,3 +66,11 @@ FoundationCore.v
 FoundationElementsProviders.v
 CompiledMultisigFoundation.v
 CompiledMultisigFoundationSecurity.v
+CompiledMultisigFoundationCmrSecurity.v
+Sha256Core.v
+SimplicityCmrSha.v
+SimplicityCmrAlgebra.v
+SimplicityCmrAlgebraWf.v
+CompiledMultisigRealCmr.v
+CompiledMultisigRealCmrChecked.v
+ElementsJetSemanticsInhabited.v

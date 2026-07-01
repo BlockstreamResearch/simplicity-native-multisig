@@ -25,6 +25,12 @@ Current checked bridge artifacts:
 - `CmrWellFormed.v`: the 256-bit-output contract for CMR algebras, plus
   checked/unchecked CMR agreement and Elements jet CMR adapter preservation
   theorems.
+- `FoundationCmrAlgebra.v`: a foundation-shaped CMR adapter interface matching
+  the upstream Merkle-root tag/`compress_half`/`compress` structure, with
+  audited shape and well-formedness theorems for the local checked-CMR decoder.
+  The shape lemmas make explicit that assertion nodes share the case tag,
+  two-child disconnects use the disconnect-tag unary CMR, and Elements jets come
+  from the checked Elements CMR table.
 - `TypedBridge.v`: executable structural type-table checker, parameterized by
   hooks for jets, witnesses, words, fails, and disconnect forms.
 - `ElementsJetTypes.v`: the upstream source/target type table for the
@@ -68,13 +74,24 @@ Current checked bridge artifacts:
   typed-byte root composition theorem for the actual generated compiled
   multisig typed certificate, conditional on either the generic non-core
   provider or the narrowed Elements provider family. It also instantiates the
-  root-term theorem from the compact typed checked-CMR bridge evidence path for
-  the concrete artifact.
+  root-term theorem from both the compact typed checked-CMR bridge evidence path
+  and the direct successful typed streaming checked-program path for the
+  concrete artifact.
+- `CompiledMultisigFoundationCmrEvidence.v`: audited byte-decoder projections
+  from the direct successful typed streaming checked-program path specialized to
+  `foundation_elements_cmr_algebra ops`. It exposes the streamed decoded-program
+  equality and the checked-CMR equality to the exported artifact CMR.
 - `CompiledMultisigFoundationSecurity.v`: composes the checked typed+CMR
   root-term path with the concrete artifact security theorem under explicit
   dynamic prefix/`CountVotes`/threshold-count premises, and under the stronger
   semantic-side package of static/prefix/minimum Elements assertion-success
-  facts plus explicit `CountVotes` evidence.
+  facts plus executed vote slots and the final vote-threshold assertion. The
+  strongest variants now start from a successful typed streaming checked-program
+  run rather than separate decoded-program and unchecked-CMR premises.
+- `CompiledMultisigFoundationCmrSecurity.v`: specializes the strongest checked
+  security theorem to `foundation_elements_cmr_algebra ops`, removing the
+  arbitrary-CMR-algebra surface from the top checked artifact theorem while
+  keeping the successful checked-program run as an explicit premise.
 - `MultisigSourceBlocks.v`: source-block lemmas for participant uniqueness,
   static threshold bounds, and a composition theorem from named source-block
   premises to `multisig_covenant_succeeds`.
@@ -188,22 +205,29 @@ consume the narrowed Elements provider family. `ElementsJetSemantics.v` now star
 by proving that the relevant successful static, prefix/current-index,
 environment lookup, and minimum-input jet assertions imply the corresponding
 source/model premises. `ElementsJetEnvironment.v` now composes those premises
-with explicit `CountVotes` evidence and a threshold-count proof to derive the
-actual `multisig_covenant_succeeds` model predicate. `CompiledMultisigExample.v`
+with `ElementsVoteSlotsExecution` and the final vote-threshold assertion to
+derive `CountVotes`, the threshold-count fact, and the actual
+`multisig_covenant_succeeds` model predicate. `CompiledMultisigExample.v`
 specializes that source/model composition to the concrete decoded artifact's
 threshold and participant keys for the static side, and then composes it with
 the existing model security theorem to derive the concrete artifact's
 authorization/security property from the same dynamic premises.
 `CompiledMultisigFoundationSecurity.v` now composes that security theorem with
 the checked typed+CMR foundation root-term entry point. The strongest current
-statement starts from the checked byte/type/CMR artifact and narrowed Elements
-term providers, consumes semantic static/prefix/minimum assertion-success facts,
-and still requires explicit `CountVotes` and threshold-count premises. The remaining
-type/term bridge is to implement concrete foundation providers for assertion,
-Elements jet, witness, word, and two-child disconnect primitives, connect
-witness values during semantic evaluation, and complete the
-hash/Taproot/signature execution bridge that produces the prefix, `CountVotes`,
-and threshold-count premises.
+statement starts from a successful typed streaming checked-program run over the
+concrete byte/type/CMR artifact and narrowed Elements term providers, consumes
+semantic static/prefix/minimum assertion-success facts, an executed vote-slot
+trace, and the final threshold assertion. `FoundationCmrAlgebra.v` now narrows
+that successful checked-program premise to a foundation-shaped CMR adapter
+surface, and `CompiledMultisigFoundationCmrSecurity.v` exposes the corresponding
+top theorem. The remaining CMR bridge is to instantiate `FoundationCmrOps` from
+upstream `Simplicity.Digest`/`Simplicity.MerkleRoot` and prove/run the concrete
+checked-program equality for the deployed artifact. The remaining type/term
+bridge is to implement concrete foundation providers for assertion, Elements
+jet, witness, word, and two-child disconnect primitives, connect witness values
+during semantic evaluation, and complete the hash/Taproot/signature execution
+bridge that produces the prefix/static assertion facts and the vote execution
+relation.
 
 ## Bridge theorem target
 
@@ -256,11 +280,12 @@ and foundation evaluation, not from an assumed SIMF source semantics.
    compiler, and build the foundation Coq project in one Coq version.
 2. Build this `formal/` project in the same Coq version and add the foundation
    Coq project as a dependency of `formal/_CoqProject`.
-3. Instantiate the local CMR algebra from `Simplicity.MerkleRoot` for core
-   nodes, assertions, witnesses, fails, and words; use `ElementsJetCmr.v` for
-   the multisig Elements jet CMRs, and discharge the `CmrWellFormed.v`
-   contract. Then prove that the byte-certificate CMR checker is using the same
-   root function as the foundation/Rust artifact.
+3. Instantiate `FoundationCmrOps` from `Simplicity.MerkleRoot` for core nodes,
+   assertions, witnesses, fails, and words; use `ElementsJetCmr.v` for the
+   multisig Elements jet CMRs, and discharge the concrete dependency/toolchain
+   side of the adapter. Then prove that the typed streaming checked-program run
+   with `foundation_elements_cmr_algebra ops` accepts the deployed artifact's
+   exported CMR.
 4. Tie `ElementsJetTypes.v`'s checked source/target table to the foundation type
    representation. The compact indexed type artifact from `coq-typed` is
    already checked, proved atom-free, and proved translatable through the
@@ -278,11 +303,11 @@ and foundation evaluation, not from an assumed SIMF source semantics.
    static participant/threshold/prefix/current-index/minimum-input assertion
    laws, the environment-to-transaction-list relation, and the concrete
    artifact's static threshold/participant checks are now captured and composed
-   to the model predicate when explicit counted-vote evidence is supplied. The
-   remaining concrete specs are SHA256 word hashing, Schnorr verification,
-   Taproot script hash construction, witness decoding, and proving the loop
-   bodies produce the prefix, `CountVotes`, and threshold-count premises from
-   foundation evaluation.
+   to the model predicate when executed vote-slot evidence and the final
+   threshold assertion are supplied. The remaining concrete specs are SHA256 word
+   hashing, Schnorr verification, Taproot script hash construction, witness
+   decoding, and proving the loop bodies produce the prefix/static assertion
+   facts and vote execution relation from foundation evaluation.
 8. Prove each jet specification refines the abstract functions used in
    `MultisigSecurity.v`.
 9. Represent the generated multisig Simplicity term in Coq, preferably by

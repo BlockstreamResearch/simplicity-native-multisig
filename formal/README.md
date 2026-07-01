@@ -65,6 +65,16 @@ Bridge artifacts now checked by Coq:
   computation. It also proves the Elements jet CMR adapter preserves that
   contract, so the remaining CMR task is the foundation-backed core hash/tag
   algebra rather than the jet table.
+- `FoundationCmrAlgebra.v` packages a foundation-shaped CMR adapter interface
+  matching the upstream Merkle-root operation shape: commitment tags for nullary
+  nodes, `compress_half` for unary nodes, `compress` for binary nodes, and
+  explicit word/fail/jet functions. Coq proves this adapter satisfies the local
+  256-bit CMR-algebra contract once the operations are supplied. It also exposes
+  checked shape lemmas showing that assertion nodes use the case-tag compression
+  shape, two-child disconnect uses the disconnect-tag unary shape, and the
+  Elements-wrapped algebra uses the audited Elements jet CMR table. This does
+  not instantiate SHA256 or tag constants yet; that remains the
+  `Simplicity.Digest`/`Simplicity.MerkleRoot` dependency task.
 - `ElementsJetTypes.v` defines the source and target types for the same
   whitelisted Elements jets from the upstream Elements `primitiveJetNode.inc`
   and `primitiveInitTy.inc` tables. The theorem
@@ -97,16 +107,27 @@ Bridge artifacts now checked by Coq:
   the actual generated compact typed multisig certificate. It proves that the
   decoded concrete artifact has an upstream foundation root term once that
   narrowed Elements provider family is supplied. It also exposes the same
-  root-term conclusion from checked-CMR compact typed bridge evidence, so the
-  stronger byte+type+declared-CMR artifact path has a named foundation entry
-  point.
+  root-term conclusion from checked-CMR compact typed bridge evidence and from a
+  successful typed streaming checked-program run, so the stronger
+  byte+type+declared-CMR artifact path has a named foundation entry point.
+- `CompiledMultisigFoundationCmrEvidence.v` specializes the successful checked
+  typed streaming run to `foundation_elements_cmr_algebra ops` and exposes the
+  direct byte-decoder facts: the concrete program bytes stream-decode to the
+  returned program and the checked CMR computation equals the exported artifact
+  CMR under that foundation-shaped adapter.
 - `CompiledMultisigFoundationSecurity.v` composes that checked typed+CMR
   foundation entry point with the concrete artifact security theorem. Given the
   narrowed Elements provider family and either explicit dynamic
-  prefix/`CountVotes`/threshold-count premises or the static/prefix/minimum
-  Elements assertion-success facts from `ElementsJetEnvironment.v`, Coq derives
-  the full model security property while also returning the concrete foundation
-  root term for the checked artifact.
+  prefix/`CountVotes`/threshold-count premises or the stronger semantic package
+  of static/prefix/minimum assertion facts plus executed vote slots and the
+  final threshold assertion from `ElementsJetEnvironment.v`, Coq derives the
+  full model security property while also returning the concrete foundation root
+  term for the checked artifact.
+- `CompiledMultisigFoundationCmrSecurity.v` specializes the strongest checked
+  artifact theorem to `foundation_elements_cmr_algebra ops`, so the top checked
+  security statement no longer exposes an arbitrary `CmrAlgebra`. The remaining
+  premise is a successful typed streaming checked-program run using a
+  `FoundationCmrOps` implementation.
 - `SimplicityByteDecoder.v` is a compatibility wrapper around the byte-decoder
   layers: `SimplicityByteDecoderBits.v`, `SimplicityByteDecoderProgramTypes.v`,
   `SimplicityByteDecoderRawOrder.v`, `SimplicityByteDecoderConversionCore.v`,
@@ -133,10 +154,11 @@ Bridge artifacts now checked by Coq:
   no-witness DAG decoder's artifact boundary. It now also computes and
   verifies the decoded
   structural program's root CMR under an explicit CMR algebra, with a checked
-  path that rejects non-256-bit computed or expected CMRs. The algebra still
-  needs to be instantiated with the Simplicity foundation's concrete
-  `CommitmentRoot` hash/tag functions; `CmrWellFormed.v` now packages the
-  256-bit-output obligation and composes the checked Elements jet CMR table.
+  path that rejects non-256-bit computed or expected CMRs. `CmrWellFormed.v`
+  packages the 256-bit-output obligation, `ElementsJetCmr.v` composes the
+  checked Elements jet CMR table, and `FoundationCmrAlgebra.v` gives the
+  foundation-shaped adapter surface. The adapter still needs to be instantiated
+  with the Simplicity foundation's concrete `CommitmentRoot` hash/tag functions.
   Typed conversion, full
   maximal-sharing checks by semantic node identity, and semantic evaluation
   remain future bridge work. The structural program now exposes its contained
@@ -188,16 +210,19 @@ Bridge artifacts now checked by Coq:
   Elements non-core node families and proves rejected fail/`disconnect1` nodes
   cannot satisfy the typed-certificate hooks. `CompiledMultisigFoundation.v`
   instantiates that theorem for the concrete generated compiled multisig
-  artifact, including a checked-CMR entry point that consumes concrete decoded
-  program and declared-CMR equality premises.
+  artifact, including checked-CMR entry points that consume either concrete
+  decoded-program plus declared-CMR equality premises or the direct successful
+  typed streaming checker result.
   The jet-level semantic-spec bridge now covers the static participant,
   threshold, prefix/current-index, environment lookup, and minimum-input
-  assertions. It also packages those assertion facts together with an explicit
-  `CountVotes` witness into `multisig_source_blocks_succeed`, then composes that
-  into `multisig_covenant_succeeds`. Supplying concrete foundation primitive
+  assertions. It also packages those assertion facts together with the
+  `ElementsVoteSlotsExecution` relation and final vote-threshold assertion to
+  derive `CountVotes`, the threshold-count fact, and then
+  `multisig_covenant_succeeds`. Supplying concrete foundation primitive
   providers for assertions, Elements jets, witnesses, words, two-child
-  disconnects, plus full hash/Taproot/signature semantic evaluation, remains
-  future primitive/foundation bridge work.
+  disconnects, plus deriving that execution relation from full
+  hash/Taproot/signature semantic evaluation, remains future
+  primitive/foundation bridge work.
 - `crates/contracts/src/multisig/builder.rs` now exports a
   `CompiledMultisigCertificate` containing the compiled no-witness program
   bytes, CMR, root arrow, and per-node type table from the same `CommitNode`,
@@ -251,9 +276,13 @@ Bridge artifacts now checked by Coq:
   `compiled_multisig_threshold` distinct declared participants and satisfies
   the full model security property. `MultisigCertificate.v` also packages a
   bridge theorem from decode evidence plus ordinary CMR equality under a
-  `CmrWellFormed.v` algebra, so the remaining byte-level CMR task is
-  instantiating the concrete core CMR algebra from the Simplicity foundation and
-  proving that ordinary equality to the deployed artifact's exported CMR.
+  `CmrWellFormed.v` algebra. `CompiledMultisigFoundationCmrEvidence.v` exposes
+  the decoded-program and checked-CMR projections for that path specialized to
+  the foundation-shaped adapter, and `CompiledMultisigFoundationCmrSecurity.v`
+  specializes the strongest checked security theorem to the same adapter. The
+  remaining byte-level CMR task is instantiating `FoundationCmrOps` from the
+  Simplicity foundation and proving that the checked run accepts the deployed
+  artifact's exported CMR.
 - `MultisigCertificate.v` exports the byte-certificate modules:
   `MultisigCertificateCore.v` for the artifact shape and low-level checkers,
   `MultisigCertificateShape.v` for shape/static-field facts,
@@ -318,14 +347,16 @@ Bridge artifacts now checked by Coq:
   equality under a well-formed CMR algebra, avoiding another byte-decoder run
   while constructing compact typed checked-CMR bridge evidence.
   `CompiledMultisigFoundation.v` consumes that checked-CMR bridge evidence to
-  produce the same conditional upstream foundation root term, with entry points
-  phrased against the narrower Elements provider family.
+  produce the same conditional upstream foundation root term, and now also
+  accepts the direct successful typed streaming checked-program result. Both
+  entry points are phrased against the narrower Elements provider family.
   `CompiledMultisigFoundationSecurity.v` composes the checked typed+CMR
-  foundation-term path with the concrete artifact security theorem under the
-  still-explicit dynamic vote premises, and also accepts the
-  `ElementsJetEnvironment.v` static/prefix/minimum assertion-success package in
-  place of manually supplied prefix/input arithmetic. Witness value semantics
-  plus concrete primitive providers for those node families are still open.
+  foundation-term path with the concrete artifact security theorem, including
+  the direct successful checked-program entry point, under either the
+  still-explicit dynamic vote premises or the stronger `ElementsJetEnvironment.v`
+  package of static/prefix/minimum assertion success, executed vote slots, and
+  the final threshold assertion. Witness value semantics plus concrete primitive
+  providers for those node families are still open.
 - `MultisigSourceBlocks.v` contains source-level SIMF block lemmas, starting
   with the proof that the three participant inequality checks imply
   `NoDup [participant1; participant2; participant3]`. It also combines the
@@ -336,11 +367,12 @@ Bridge artifacts now checked by Coq:
   `multisig_source_blocks_imply_model_success`, whose conclusion is the actual
   model predicate `multisig_covenant_succeeds`.
 - `ElementsJetEnvironment.v` composes the semantic-side static/prefix/minimum
-  input assertion bridge with explicit counted-vote evidence. The theorem
-  `static_prefix_minimum_and_votes_imply_model_success` is the current strongest
-  semantic bridge to the model: the remaining open work is deriving its
-  `CountVotes` and vote-threshold premises from concrete foundation evaluation
-  of the decoded compiled term.
+  input assertion bridge with vote-slot execution evidence. The theorem
+  `static_prefix_minimum_and_executed_votes_imply_model_success` derives the
+  model predicate from static/prefix/minimum assertion success, an
+  `ElementsVoteSlotsExecution` trace, and the final threshold assertion. The
+  remaining open work is deriving those semantic assertion and execution facts
+  from concrete foundation evaluation of the decoded compiled term.
 
 Build:
 

@@ -239,3 +239,51 @@ Proof.
       Hbridge
       Hnon_core).
 Qed.
+
+Theorem compiled_multisig_streaming_typed_checked_root_foundation_term :
+  forall alg program,
+    compiled_multisig_streaming_typed_checked_program
+      alg reject_unhandled_type_hooks = Some program ->
+    foundation_non_core_term_provider_for_prefixes
+      (typed_certificate_hooks reject_unhandled_type_hooks) ->
+    exists typed_certificate,
+      compiled_multisig_typed_certificate = Some typed_certificate /\
+      exists foundation_term :
+        FoundationTermForArrow
+          (typed_certificate_root_arrow typed_certificate),
+        True.
+Proof.
+  intros alg program Hchecked Hnon_core.
+  pose proof
+    (@compiled_multisig_streaming_typed_bridge_evidence_if_checked
+      alg
+      reject_unhandled_type_hooks
+      program
+      Hchecked) as Hbridge.
+  exact
+    (@compiled_multisig_typed_bridge_root_foundation_term
+      alg
+      program
+      Hbridge
+      Hnon_core).
+Qed.
+
+Theorem compiled_multisig_streaming_typed_checked_root_foundation_term_with_elements_providers :
+  forall alg program,
+    compiled_multisig_streaming_typed_checked_program
+      alg reject_unhandled_type_hooks = Some program ->
+    foundation_elements_term_provider_for_prefixes
+      reject_unhandled_type_hooks ->
+    exists typed_certificate,
+      compiled_multisig_typed_certificate = Some typed_certificate /\
+      exists foundation_term :
+        FoundationTermForArrow
+          (typed_certificate_root_arrow typed_certificate),
+        True.
+Proof.
+  intros alg program Hchecked Hproviders.
+  eapply compiled_multisig_streaming_typed_checked_root_foundation_term.
+  - exact Hchecked.
+  - eapply foundation_non_core_term_provider_for_prefixes_from_elements_providers.
+    exact Hproviders.
+Qed.

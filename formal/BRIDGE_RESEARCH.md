@@ -9,9 +9,11 @@ before the Coq proof is a proof about that compiled artifact?
 The compiled program is the artifact we want to prove things about.  It is now
 partly a Coq object with Coq theorems attached to it: Coq imports the concrete
 byte certificate, decodes and validates it structurally, checks its exported
-static threshold/participant fields, and composes those static facts with
-explicit prefix and counted-vote premises into the abstract covenant model and
-the model security theorem.
+static threshold/participant fields, checks the compact typed artifact including
+the declared CMR through a Coq checker entry point, specializes the strongest
+checked theorem to a foundation-shaped CMR adapter, and composes those static
+facts with semantic assertion and executed-vote premises into the abstract
+covenant model and the model security theorem.
 
 The current proof in `MultisigSecurity.v` proves the contract-level security
 property for an abstract model:
@@ -46,17 +48,20 @@ The intended no-shortcut bridge has these layers:
 2. **Byte decoding.**  Coq decodes the bytes into a structural Simplicity DAG,
    checks padding, hidden/assertion rules, canonical order, child references,
    no fail nodes, no reserved `disconnect1`, multisig-only Elements jets, and
-   CMR equality under a concrete CMR algebra.
+   CMR equality under a concrete CMR algebra. The current strongest checked
+   theorem already requires that algebra through the foundation-shaped
+   `FoundationCmrOps` adapter; the concrete `Digest/MerkleRoot` instantiation
+   is still missing.
 3. **Typing.**  Coq checks the exported per-node type table against that decoded
    DAG, including the root arrow and the source/target types of every
    whitelisted Elements jet.
 4. **Foundation term construction.**  Coq turns the typed structural DAG into
-   the upstream Simplicity foundation's term representation.  Pure core nodes
-   are already bridged to `Simplicity.Core.Term`; the next no-shortcut target
-   is the richer algebraic interface in `Simplicity.Alg`,
-   `Simplicity.Primitive`, and `Simplicity.Delegation`, so assertion, jet,
-   witness, word, and disconnect providers are discharged by foundation
-   constructors rather than by a local placeholder language.
+   the upstream Simplicity foundation's term representation under explicit
+   primitive-provider obligations.  Pure core nodes are bridged to
+   `Simplicity.Core.Term`, and the compiled multisig theorem now reaches a
+   foundation root term when assertion, jet, witness, word, and disconnect
+   providers are supplied. The next no-shortcut target is to instantiate those
+   providers with concrete foundation semantics rather than local placeholders.
 5. **Primitive semantics.**  Coq specifies the Elements environment and each
    used Elements jet: transaction introspection, SHA256 context operations,
    Taproot/taptweak construction, Schnorr verification, arithmetic/comparison
@@ -72,10 +77,17 @@ The intended no-shortcut bridge has these layers:
 So the compiled opcodes are necessary input to the proof, not the proof itself.
 They are now formally useful up to byte decoding, typing, foundation-term
 construction under explicit primitive providers, and concrete security
-composition under explicit dynamic premises. The remaining gap is to interpret
-successful foundation execution of the concrete artifact and derive the prefix,
-`CountVotes`, and threshold-count premises that the current checked-artifact
-security theorem consumes.
+composition from a successful typed streaming checked-program run under semantic
+assertion and executed-vote premises. The checked run is now specialized to the
+foundation-shaped CMR adapter surface, and the direct decoded-program plus
+checked-CMR equalities for that specialized run are now exposed separately from
+the heavy security theorem. The remaining CMR gap is a concrete
+`FoundationCmrOps` implementation from the foundation/Rust-compatible
+`Digest/MerkleRoot` functions plus the proof that the deployed artifact is
+accepted with it. The remaining semantic gap is to interpret successful
+foundation execution of the concrete artifact and derive the prefix/static
+assertion facts, `ElementsVoteSlotsExecution`, and final threshold assertion
+that the strongest checked-artifact security theorem consumes.
 
 
 ## Detailed notes

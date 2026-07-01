@@ -45,10 +45,13 @@ This is the strongest route because it removes the Rust exporter/compiler from
 the trusted bridge. The current `SimplicityByteDecoder.v` is the beginning of
 this route: it decodes the structural byte encoding, validates hidden/assertion
 rules and canonical root-reachable order, and checks a 256-bit root CMR under a
-supplied CMR algebra. The current concrete artifact already uses that route for
-streaming structural decode and static certificate checks. The remaining work
-is to instantiate the CMR algebra with the concrete foundation/Rust-compatible
-hash functions and add the Elements primitive specifications/evaluation bridge.
+supplied CMR algebra. `FoundationCmrAlgebra.v` now narrows the intended
+algebra shape to the upstream foundation tag/`compress_half`/`compress`
+structure. The current concrete artifact already uses the byte-decoder route
+for streaming structural decode and static certificate checks. The remaining
+work is to instantiate `FoundationCmrOps` with the concrete
+foundation/Rust-compatible hash functions and add the Elements primitive
+specifications/evaluation bridge.
 
 ### Option D: Trace/certificate checker
 
@@ -67,10 +70,13 @@ Use a staged bridge:
 1. Keep the existing abstract model proof as the security theorem.
 2. Add an Elements primitive module for only the jets this covenant uses.
 3. Prove source-level SIMF block lemmas against the model predicate.
-4. Fix the foundation dependency shell, align Coq versions, and instantiate the
-   existing structural CMR verifier with the concrete Simplicity
-   foundation/Rust CMR functions plus `ElementsJetCmr.v`'s checked Elements jet
-   CMR table, discharging the `CmrWellFormed.v` contract for the core algebra.
+4. Fix the foundation dependency shell, align Coq versions, and instantiate
+   `FoundationCmrOps` with the concrete Simplicity foundation/Rust CMR functions
+   plus `ElementsJetCmr.v`'s checked Elements jet CMR table. Then prove the
+   typed streaming checked-program run accepts the deployed artifact's exported
+   CMR under `foundation_elements_cmr_algebra ops`; the direct decoded-program
+   and checked-CMR projections for that specialized run are already exposed in
+   `CompiledMultisigFoundationCmrEvidence.v`.
 5. Use the compact indexed type artifact from `coq-typed`, tie
    `ElementsJetTypes.v` to the foundation type representation, use the narrowed
    `FoundationElementsProviders.v` obligations for allowed non-core node
@@ -80,8 +86,8 @@ Use a staged bridge:
    the existing imported constants, structural decoder, compact type artifact,
    and static certificate theorems as the artifact boundary.
 7. Prove that the decoded compiled term's successful foundation evaluation
-   produces the remaining source-level block premises: prefix facts,
-   `CountVotes`, and the final threshold-count fact.
+   produces the remaining semantic bridge facts: prefix/static assertion
+   success, `ElementsVoteSlotsExecution`, and the final threshold assertion.
 
 This avoids a shortcut: the proof remains checked by Coq, but the first
 implementation milestone does not try to verify the whole compiler and byte
@@ -118,9 +124,11 @@ remaining exporter or concrete-decoder trust boundary.
 The problem is not that we lack compiled Simplicity opcodes. The current proof
 already imports and structurally checks those bytes, and it connects their
 static parameters to the model and to the checked typed+CMR foundation root-term
-path. The remaining problem is that there is no complete formal bridge from
-successful execution of those opcodes to the dynamic `CountVotes`/prefix
-premises consumed by the checked-artifact security theorem.
+path. The strongest checked theorem is now specialized to the foundation-shaped
+CMR adapter surface, but the concrete upstream CMR instantiation is still open.
+The remaining semantic problem is that there is no complete formal bridge from
+successful execution of those opcodes to the assertion and executed vote-slot
+facts consumed by the strongest checked-artifact security theorem.
 
 The foundation gives the language and proof machinery. Our work is to add the
 contract-specific Elements semantics, represent or decode the compiled program

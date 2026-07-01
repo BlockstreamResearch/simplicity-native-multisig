@@ -47,7 +47,7 @@ Closed under the global context
 
 This includes the Elements jet decoder roundtrip theorem, Elements jet whitelist
 theorems, Elements jet semantic assertion-to-source-block bridge theorems,
-the semantic assertion plus counted-vote bridge to
+the semantic assertion plus executed-vote bridge to
 `multisig_covenant_succeeds`, Elements environment-to-transaction-list bridge theorems,
 Elements jet CMR byte-range and 256-bit length theorems, Elements jet
 source/target, witness-admissibility, word, fail-rejection, reserved one-child
@@ -63,7 +63,8 @@ streaming cursor strict-backreference theorems, hidden-CMR uniqueness and
 length/equality soundness
 theorems for both bit-list and streaming decoders, the CMR-algebra
 well-formedness and checked/unchecked CMR agreement theorems, the Elements jet
-CMR adapter well-formedness theorem, the
+CMR adapter well-formedness theorem, the foundation-shaped CMR adapter
+assertion/disconnect/jet-table shape and well-formedness theorems, the
 indexed structural no-fail-node and no-`disconnect1`-node theorems, the
 compiled byte-certificate checker soundness theorem, the decode-only and
 streaming compiled byte-certificate checker and evidence theorems, the
@@ -82,7 +83,10 @@ checks, the concrete compiled artifact composition from explicit prefix and
 from those same premises to threshold-distinct-declared-participant
 authorization and the full model security property, the checked typed+CMR
 foundation-artifact composition that returns the concrete foundation root term
-and the full model security property under those same dynamic premises, the
+and the full model security property under either those same dynamic premises or
+the stronger semantic package of static/prefix/minimum assertion facts, executed
+vote slots, and final threshold assertion, including the direct successful
+typed streaming checked-program entry point, the
 aggregate byte-certificate bridge evidence
 theorem, the typed structural checker soundness theorem, recursive and indexed
 per-node Prop typing soundness theorems, typed table
@@ -93,7 +97,9 @@ byte-certificate streaming checker soundness and evidence theorems, compact
 type-artifact atom-freeness preservation theorems, the concrete expanded typed
 certificate atom-freeness theorem, the generic Unit/Sum/Prod type-algebra
 translation theorems, the concrete typed-certificate translation theorem, the
-upstream `Simplicity.Ty` adapter theorem, the upstream `Simplicity.Core` core
+foundation-CMR-specialized checked decoded-program and checked-CMR projection
+theorems, the upstream `Simplicity.Ty` adapter theorem, the upstream
+`Simplicity.Core` core
 node `Term` adapter theorem, the conditional typed-byte node/root foundation
 term composition theorems, the recursive typed-prefix child-term provider and
 typed-byte root theorem that no longer takes caller-supplied child terms, the
@@ -102,7 +108,9 @@ checked Elements-provider narrowing theorem that discharges fail and reserved
 multisig root-foundation theorems conditional on explicit non-core primitive
 providers or the narrowed Elements provider family, including the checked-CMR
 bridge evidence entry point, direct checked typed program entry point, and
-decoded-byte/checked-CMR projections from that direct entry point, and the
+decoded-byte/checked-CMR projections from that direct entry point, the
+CMR-specialized checked artifact security theorem whose successful checked run
+uses `foundation_elements_cmr_algebra ops`, and the
 source-block theorems that the
 three participant inequality checks imply
 `NoDup [participant1; participant2; participant3]` and that the static SIMF
@@ -125,8 +133,9 @@ This is a no-hidden-axioms proof for the covenant model in
 current byte decoder, typed structural checker, certificate checker, and
 source-block artifacts, including the typed byte-certificate checker, the
 checked CMR constants for the whitelisted Elements jets, the CMR-algebra
-well-formedness layer, and the checked source/target type hooks for those jets
-plus Simplicity word nodes, fail rejection, and two-child disconnect typing. The concrete generated example
+well-formedness layer, the foundation-shaped CMR adapter layer, and the checked
+source/target type hooks for those jets plus Simplicity word nodes, fail
+rejection, and two-child disconnect typing. The concrete generated example
 imported by the default audit is the lean byte-level certificate. The default
 audit also imports a type-only concrete compact typed certificate example that
 reuses the byte-level certificate, checks that the compact type artifact
@@ -152,10 +161,21 @@ and `disconnect1` cannot satisfy the typed-certificate hooks. The audit also
 imports `CompiledMultisigFoundation.v`, which applies that theorem to the actual
 generated compact typed multisig artifact and to the checked-CMR compact typed
 bridge evidence path, including variants that consume the narrowed Elements
-provider family. `CompiledMultisigFoundationSecurity.v` is audited separately;
-it composes the checked typed+CMR foundation entry point with the concrete
-artifact security property under explicit dynamic vote premises and under the
-semantic static/prefix/minimum assertion-success package. It also
+provider family and the direct successful typed streaming checked-program
+result. `CompiledMultisigFoundationCmrEvidence.v` is audited as the lightweight
+byte-evidence projection layer for the same direct checked-program result under
+`foundation_elements_cmr_algebra ops`: it exposes the streamed decoded-program
+equality and checked CMR equality to the exported artifact CMR.
+`CompiledMultisigFoundationSecurity.v` is audited separately; it
+composes the checked typed+CMR foundation entry point with the concrete artifact
+security property under explicit dynamic vote premises and under the semantic
+static/prefix/minimum assertion-success package plus executed vote slots and the
+final threshold assertion. `FoundationCmrAlgebra.v` and
+`CompiledMultisigFoundationCmrSecurity.v` are also audited; together they show
+that the strongest checked-artifact security theorem can be stated against the
+foundation-shaped CMR adapter surface rather than an arbitrary CMR algebra. It
+still requires a concrete `FoundationCmrOps` implementation and a successful
+checked-program run with that implementation. It also
 audits composition theorems that turn existing byte-decode evidence, a
 type-table check, and
 ordinary CMR equality under a well-formed CMR algebra into compact typed

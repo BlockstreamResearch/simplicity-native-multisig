@@ -20,8 +20,12 @@ The missing pieces are:
    Elements jet CMR half of this table is now present in `ElementsJetCmr.v`.
    `CmrWellFormed.v` proves the 256-bit-output contract needed to turn ordinary
    CMR computation into the checked-CMR decoder path, and proves the Elements
-   jet adapter preserves that contract. The remaining CMR gap is the
-   foundation-backed core hash/tag algebra and its Coq version/dependency setup.
+   jet adapter preserves that contract. `FoundationCmrAlgebra.v` now packages
+   the foundation-shaped tag/`compress_half`/`compress` adapter surface and
+   proves it satisfies the local checked-CMR contract once concrete operations
+   are supplied. The remaining CMR gap is instantiating that surface from
+   upstream `Simplicity.Digest`/`Simplicity.MerkleRoot` and resolving the Coq
+   version/dependency setup needed to import those modules.
 3. A default-audit path for checking the exported compact concrete type-table
    artifact in Coq, a theorem tying
    `ElementsJetTypes.v`'s `BridgeType` representation to the foundation's
@@ -100,10 +104,13 @@ turns any successful streaming checked-CMR run into
 also has theorems that turn streaming decode evidence plus ordinary CMR
 equality into the same checked bridge evidence, including typed evidence when
 a type-table proof is already available, provided the CMR algebra satisfies
-`CmrWellFormed.v`. The remaining CMR work is not the checker interface; it is
-instantiating the concrete core CMR algebra from the Simplicity foundation,
-proving its `CmrWellFormed.v` contract, and proving ordinary equality to the
-deployed artifact's exported CMR.
+`CmrWellFormed.v`. `CompiledMultisigFoundationCmrSecurity.v` also specializes
+the strongest checked-artifact security theorem to the foundation-shaped CMR
+adapter, so the top theorem no longer exposes an arbitrary `CmrAlgebra`. The
+remaining CMR work is not the checker interface; it is instantiating
+`FoundationCmrOps` from the Simplicity foundation, proving the concrete checked
+run accepts the deployed artifact's exported CMR, and keeping that instantiation
+aligned with Rust's CMR implementation.
 The concrete module also exposes the artifact's decoded threshold and three
 participant keys, proves the static source checks for those values, and proves
 that explicit prefix, `CountVotes`, and threshold-count premises imply both
@@ -111,7 +118,10 @@ source-block success and `multisig_covenant_succeeds` for the concrete declared
 participant set. It also composes that concrete model-success theorem with the
 existing model security theorem, so those same dynamic premises imply
 threshold-distinct-declared-participant authorization and the full model
-security property for the concrete artifact.
+security property for the concrete artifact. The strongest semantic bridge now
+also derives those dynamic vote premises from `ElementsVoteSlotsExecution` plus
+the final threshold assertion, after the static/prefix/minimum assertion facts
+are supplied.
 
 A typed artifact adds the concrete per-node type table and expected root arrow,
 encoded compactly as type, arrow, table-entry, and root-arrow indexes. It then
@@ -133,6 +143,9 @@ The checked path now also has named projections from compact typed checked-CMR
 evidence back to byte bridge evidence, decoded-byte equality, and checked CMR
 equality; the concrete compiled artifact instantiates those projections for
 `compiled_multisig_streaming_typed_checked_program`.
+`CompiledMultisigFoundationCmrEvidence.v` specializes the direct decoded-program
+and checked-CMR projections to `foundation_elements_cmr_algebra ops`, which is
+the entry point the concrete `FoundationCmrOps` implementation must satisfy.
 It also proves that the concrete compact typed artifact expands to a type table
 and root arrow containing no `BTAtom` constructors, and the checked adapter now
 translates that table into upstream `Simplicity.Ty`. The checked core adapter
@@ -147,11 +160,16 @@ narrowed Elements provider family. `CompiledMultisigFoundationSecurity.v`
 composes that checked typed+CMR root-term path with the concrete artifact
 security theorem under explicit dynamic prefix, `CountVotes`, and
 threshold-count premises, and also under the semantic static/prefix/minimum
-assertion-success package from `ElementsJetEnvironment.v`. The remaining
-implementation work is to implement those providers across assertions, jets,
-witnesses, words, and two-child disconnect nodes, connect witness values during
-semantic evaluation, and prove that successful foundation execution produces the
-remaining dynamic vote premises.
+assertion-success package plus executed vote slots and the final threshold
+assertion from `ElementsJetEnvironment.v`. The strongest variants now consume a
+successful typed streaming checked-program result directly, instead of separate
+decoded-program and unchecked-CMR premises, and the CMR-specialized variant
+requires that successful run under `foundation_elements_cmr_algebra ops`. The
+remaining implementation work is to instantiate `FoundationCmrOps` from the
+foundation/Rust-compatible CMR functions, implement the providers across
+assertions, jets, witnesses, words, and two-child disconnect nodes, connect
+witness values during semantic evaluation, and prove that successful foundation
+execution produces those assertion and executed-vote facts.
 
 ## Target theorem
 
@@ -216,15 +234,20 @@ For this covenant, the bridge needs one lemma per meaningful SIMF block:
   length.
 - `verify_vote_input`:
   the vote input's script hash equals the Taproot commitment built from the
-  vote executable leaf hash and signature.
+  vote executable leaf hash and signature. This is now represented in the
+  semantic execution relation as `vote_input_script_hash_assert_succeeds`.
 - `checksig`:
   `bip_0340_verify` succeeds for the participant key and
-  `SHA256(vote_executable_leaf_hash || base_message)`.
+  `SHA256(vote_executable_leaf_hash || base_message)`. This is now a premise of
+  the executed-vote case in `ElementsVoteSlotsExecution`.
 - `count_vote_entry` and `count_votes`:
   counted slots correspond to declared participants in declaration order, and
-  absent vote slots are not counted.
+  absent vote slots are not counted. This is now captured by
+  `ElementsVoteSlotsExecution` and proved to imply `CountVotes`.
 - Final threshold assert:
-  the counted vote list length is at least `threshold`.
+  the counted vote list length is at least `threshold`. The semantic
+  `vote_threshold_assert_succeeds` theorem now turns the final `le_32`
+  assertion into the model threshold-count fact.
 
 These obligations are exactly what collapse the low-level Simplicity execution
 into the abstract predicate in `MultisigSecurity.v`.

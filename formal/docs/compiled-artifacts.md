@@ -145,6 +145,14 @@ entry is a 32-byte value and therefore a 256-bit CMR bitstring. It also exposes
 `with_elements_jet_cmr`, which will let the foundation-backed core CMR algebra
 reuse the checked Elements jet CMR table.
 
+`CmrWellFormed.v` packages the 256-bit-output contract used by the checked CMR
+decoder, and `FoundationCmrAlgebra.v` packages the foundation-shaped CMR
+operation surface that a concrete upstream `Digest`/`MerkleRoot` instantiation
+must fill. The adapter mirrors the upstream tag, `compress_half`, and
+`compress` structure, with checked lemmas for assertion case-tag CMRs,
+two-child disconnect CMRs, and the Elements jet CMR table override, but it
+deliberately does not define the SHA256/tag constants itself.
+
 `ElementsJetTypes.v` adds the matching source/target type table for the same
 whitelist, copied from the upstream `primitiveJetNode.inc` source/target
 indices and `primitiveInitTy.inc` type definitions. The types are represented as
@@ -226,14 +234,23 @@ rejections. `CompiledMultisigFoundation.v` applies that generic theorem to the
 actual generated compact typed multisig certificate, so the concrete decoded
 artifact now has named conditional foundation-root term theorems against both
 the generic provider and the narrowed Elements provider family. It also applies
-the same root-term construction to the compact typed checked-CMR bridge
-evidence path, anchoring that theorem to bytes, the exported type table, and
-the declared CMR check. `CompiledMultisigFoundationSecurity.v` composes the
+the same root-term construction to both the compact typed checked-CMR bridge
+evidence path and the direct successful typed streaming checked-program result,
+anchoring that theorem to bytes, the exported type table, and the declared CMR
+check. `CompiledMultisigFoundationSecurity.v` composes the
 checked typed+CMR foundation entry point with the concrete artifact security
 theorem, so the current strongest checked-artifact theorem returns a foundation
-root term and the full model security property when the semantic
-static/prefix/minimum assertion-success facts, `CountVotes`, and
-threshold-count premises are supplied.
+root term and the full model security property from a successful typed streaming
+checked-program run when the semantic static/prefix/minimum assertion-success
+facts, executed vote slots, and final vote-threshold assertion are supplied.
+`CompiledMultisigFoundationCmrSecurity.v` specializes that strongest theorem to
+the `foundation_elements_cmr_algebra ops` adapter, so the remaining CMR premise
+is a successful checked run with a concrete `FoundationCmrOps` implementation
+rather than an arbitrary local CMR algebra.
+`CompiledMultisigFoundationCmrEvidence.v` exposes the lighter byte-decoder side
+of that same specialized checked run: the concrete artifact bytes stream-decode
+to the returned program, and the checked CMR computation under
+`foundation_elements_cmr_algebra ops` equals the exported artifact CMR.
 The typed evidence
 also proves that the exported table has exactly one
 entry per decoded node, every real node has a `Some` arrow, every hidden
@@ -315,15 +332,15 @@ These files and the Rust certificate exporter do not yet complete the
 compiled-program theorem. The exporter now provides both machine-readable JSON
 and a Coq constants module, and the generated concrete module proves streaming
 decode evidence for the actual compiled bytes. It also exposes a conditional
-streaming checked-CMR bridge theorem; discharging that theorem for the concrete
-artifact still requires Coq to run the streaming checked-CMR checker with a
-concrete CMR algebra. These pieces replace part of the planned exporter trust
-boundary with checked Coq code and give a stable Rust artifact boundary, but
-conversion from the checked typed structural program into the foundation's
-full algebraic term interface, maximal-sharing checks by semantic node identity,
-concrete foundation/Rust-compatible CMR hash instantiation, witness decoding,
-Elements jet semantics, and symbolic evaluation against
-`multisig_covenant_succeeds` are still required.
+streaming checked-CMR bridge theorem and a direct security composition from a
+successful typed streaming checked-program run. Instantiating that run with the
+foundation/Rust-compatible CMR algebra is still required. These pieces replace
+part of the planned exporter trust boundary with checked Coq code and give a
+stable Rust artifact boundary, but
+concrete foundation/Rust-compatible CMR hash instantiation, concrete primitive
+providers for assertion/jet/witness/word/disconnect nodes, witness decoding, and
+symbolic evaluation that produces the semantic assertion and executed-vote facts
+consumed by `multisig_covenant_succeeds` are still required.
 
 The concrete foundation CMR instantiation was tested against
 `/Volumes/Somebody/Desktop/Simp/simplicity/Coq/Simplicity/MerkleRoot.v`. That

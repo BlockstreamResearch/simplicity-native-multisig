@@ -420,4 +420,359 @@ Proof.
     + exact Hthreshold_counted.
 Qed.
 
+Definition vote_input_script_hash_assert_succeeds
+    (vote_taproot_script_hash : Hash -> Signature -> Hash)
+    (env : ElementsEnv Word256)
+    (next_input : U32)
+    (vote : VoteEntry Hash Signature) : Prop :=
+  exists script_hash_word,
+    sem_input_script_hash sem env next_input = Some script_hash_word /\
+    sem_word256_as_hash sem script_hash_word =
+      vote_taproot_script_hash
+        (vote_executable_leaf_hash vote)
+        (vote_signature vote).
+
+Definition vote_threshold_assert_succeeds
+    (threshold counted_count : U32) : Prop :=
+  assert_true_succeeds sem (sem_le_32 sem threshold counted_count).
+
+Inductive ElementsVoteSlotsExecution
+    (participant_message : Hash -> Hash -> Hash)
+    (vote_taproot_script_hash : Hash -> Signature -> Hash)
+    (signature_valid : U256 Word256 -> Signature -> Hash -> Prop)
+    (env : ElementsEnv Word256)
+    (base : Hash) :
+    list (U256 Word256 * option (VoteEntry Hash Signature)) ->
+    U32 -> U32 -> U32 ->
+    list (CountedVote Hash (U256 Word256) Signature) -> Prop :=
+| ElementsVoteSlotsExecution_nil :
+    forall next_input,
+      ElementsVoteSlotsExecution
+        participant_message
+        vote_taproot_script_hash
+        signature_valid
+        env
+        base
+        []
+        next_input
+        next_input
+        0
+        []
+| ElementsVoteSlotsExecution_none :
+    forall participant rest next_input final_input counted_count counted,
+      ElementsVoteSlotsExecution
+        participant_message
+        vote_taproot_script_hash
+        signature_valid
+        env
+        base
+        rest
+        next_input
+        final_input
+        counted_count
+        counted ->
+      ElementsVoteSlotsExecution
+        participant_message
+        vote_taproot_script_hash
+        signature_valid
+        env
+        base
+        ((participant, None) :: rest)
+        next_input
+        final_input
+        counted_count
+        counted
+| ElementsVoteSlotsExecution_some :
+    forall participant vote rest next_input final_input
+           counted_count counted,
+      signature_valid
+        participant
+        (vote_signature vote)
+        (participant_message (vote_executable_leaf_hash vote) base) ->
+      vote_input_script_hash_assert_succeeds
+        vote_taproot_script_hash
+        env
+        next_input
+        vote ->
+      ElementsVoteSlotsExecution
+        participant_message
+        vote_taproot_script_hash
+        signature_valid
+        env
+        base
+        rest
+        (S next_input)
+        final_input
+        counted_count
+        counted ->
+      ElementsVoteSlotsExecution
+        participant_message
+        vote_taproot_script_hash
+        signature_valid
+        env
+        base
+        ((participant, Some vote) :: rest)
+        next_input
+        final_input
+        (S counted_count)
+        ({|
+          counted_participant := participant;
+          counted_signature := vote_signature vote;
+          counted_leaf_hash := vote_executable_leaf_hash vote;
+          counted_input_index := next_input;
+          counted_base_message := base
+        |} :: counted).
+
+Theorem elements_vote_slots_execution_implies_count_votes :
+  forall (participant_message : Hash -> Hash -> Hash)
+         (vote_taproot_script_hash : Hash -> Signature -> Hash)
+         (signature_valid : U256 Word256 -> Signature -> Hash -> Prop)
+         env tx current_script_hash base entries
+         next_input final_input counted_count counted,
+    ElementsEnvTxRelation env tx current_script_hash ->
+    ElementsVoteSlotsExecution
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      env
+      base
+      entries
+      next_input
+      final_input
+      counted_count
+      counted ->
+    @CountVotes
+      Hash
+      (U256 Word256)
+      Signature
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      tx
+      base
+      entries
+      next_input
+      final_input
+      counted /\
+    counted_count = length counted.
+Proof.
+  intros participant_message vote_taproot_script_hash signature_valid
+    env tx current_script_hash base entries next_input final_input
+    counted_count counted Henv Hexec.
+  induction Hexec.
+  - split.
+    + constructor.
+    + reflexivity.
+  - destruct IHHexec as [Hcount Hcounted_count].
+    split.
+    + constructor. exact Hcount.
+    + exact Hcounted_count.
+  - destruct IHHexec as [Hcount Hcounted_count].
+    unfold vote_input_script_hash_assert_succeeds in H0.
+    destruct H0 as [script_hash_word [Hscript Hscript_hash]].
+    pose proof
+      (@elements_env_input_script_hash_matches_model
+        env
+        tx
+        current_script_hash
+        next_input
+        Henv) as Hinput_script_hash.
+    rewrite Hscript in Hinput_script_hash.
+    simpl in Hinput_script_hash.
+    rewrite Hscript_hash in Hinput_script_hash.
+    split.
+    + econstructor.
+      * exact H.
+      * symmetry. exact Hinput_script_hash.
+      * exact Hcount.
+    + simpl. rewrite <- Hcounted_count. reflexivity.
+Qed.
+
+Theorem vote_threshold_assert_implies_threshold_counted :
+  forall threshold counted_count
+         (counted : list (CountedVote Hash (U256 Word256) Signature)),
+    counted_count = length counted ->
+    vote_threshold_assert_succeeds threshold counted_count ->
+    threshold <= length counted.
+Proof.
+  intros threshold counted_count counted Hcount Hthreshold.
+  unfold vote_threshold_assert_succeeds in Hthreshold.
+  unfold assert_true_succeeds in Hthreshold.
+  apply (proj1 (spec_verify Hsem (sem_le_32 sem threshold counted_count)))
+    in Hthreshold.
+  rewrite <- Hcount.
+  eapply (@elements_sem_le_32_true_le
+    Hash Pubkey Signature Ctx8 Word256 sem Hsem).
+  exact Hthreshold.
+Qed.
+
+Theorem elements_vote_execution_and_threshold_assert_imply_count_votes :
+  forall (participant_message : Hash -> Hash -> Hash)
+         (vote_taproot_script_hash : Hash -> Signature -> Hash)
+         (signature_valid : U256 Word256 -> Signature -> Hash -> Prop)
+         env tx current_script_hash base entries
+         next_input final_input counted_count counted threshold,
+    ElementsEnvTxRelation env tx current_script_hash ->
+    ElementsVoteSlotsExecution
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      env
+      base
+      entries
+      next_input
+      final_input
+      counted_count
+      counted ->
+    vote_threshold_assert_succeeds threshold counted_count ->
+    @CountVotes
+      Hash
+      (U256 Word256)
+      Signature
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      tx
+      base
+      entries
+      next_input
+      final_input
+      counted /\
+    threshold <= length counted.
+Proof.
+  intros participant_message vote_taproot_script_hash signature_valid
+    env tx current_script_hash base entries next_input final_input
+    counted_count counted threshold Henv Hexec Hthreshold.
+  pose proof
+    (@elements_vote_slots_execution_implies_count_votes
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      env
+      tx
+      current_script_hash
+      base
+      entries
+      next_input
+      final_input
+      counted_count
+      counted
+      Henv
+      Hexec) as [Hcount Hcounted_count].
+  split.
+  - exact Hcount.
+  - eapply vote_threshold_assert_implies_threshold_counted.
+    + exact Hcounted_count.
+    + exact Hthreshold.
+Qed.
+
+Theorem static_prefix_minimum_and_executed_votes_imply_model_success :
+  forall (Hash_eq_dec : forall x y : Hash, {x = y} + {x <> y})
+         (hash_words : list Hash -> Hash)
+         (participant_message : Hash -> Hash -> Hash)
+         (vote_taproot_script_hash : Hash -> Signature -> Hash)
+         (signature_valid : U256 Word256 -> Signature -> Hash -> Prop)
+         env tx current_script_hash total_proposed_outputs
+         threshold current_index participant1 participant2 participant3
+         votes final_input counted_count counted prefix carry
+         minimum_inputs_num,
+    ElementsEnvTxRelation env tx current_script_hash ->
+    current_index = env_current_index env ->
+    prefix =
+      @multisig_prefix_count Hash Hash_eq_dec tx current_script_hash ->
+    static_prefix_minimum_asserts_succeed
+      threshold
+      participant1
+      participant2
+      participant3
+      env
+      prefix
+      carry
+      minimum_inputs_num ->
+    length votes = participant_count ->
+    ElementsVoteSlotsExecution
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      env
+      (@base_message
+        Hash
+        Hash_eq_dec
+        hash_words
+        tx
+        current_script_hash
+        total_proposed_outputs)
+      (@vote_slots
+        Hash
+        (U256 Word256)
+        Signature
+        [participant1; participant2; participant3]
+        votes)
+      prefix
+      final_input
+      counted_count
+      counted ->
+    vote_threshold_assert_succeeds threshold counted_count ->
+    @multisig_covenant_succeeds
+      Hash
+      (U256 Word256)
+      Signature
+      Hash_eq_dec
+      hash_words
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      tx
+      current_script_hash
+      total_proposed_outputs
+      threshold
+      current_index
+      [participant1; participant2; participant3]
+      votes.
+Proof.
+  intros Hash_eq_dec hash_words participant_message
+    vote_taproot_script_hash signature_valid env tx current_script_hash
+    total_proposed_outputs threshold current_index participant1 participant2
+    participant3 votes final_input counted_count counted prefix carry
+    minimum_inputs_num Henv Hcurrent_index Hprefix Hasserts Hvotes_len
+    Hexec Hthreshold.
+  pose proof
+    (@elements_vote_execution_and_threshold_assert_imply_count_votes
+      participant_message
+      vote_taproot_script_hash
+      signature_valid
+      env
+      tx
+      current_script_hash
+      (@base_message
+        Hash
+        Hash_eq_dec
+        hash_words
+        tx
+        current_script_hash
+        total_proposed_outputs)
+      (@vote_slots
+        Hash
+        (U256 Word256)
+        Signature
+        [participant1; participant2; participant3]
+        votes)
+      prefix
+      final_input
+      counted_count
+      counted
+      threshold
+      Henv
+      Hexec
+      Hthreshold) as [Hcount Hthreshold_counted].
+  eapply static_prefix_minimum_and_votes_imply_model_success.
+  - exact Henv.
+  - exact Hcurrent_index.
+  - exact Hprefix.
+  - exact Hasserts.
+  - exact Hvotes_len.
+  - exact Hcount.
+  - exact Hthreshold_counted.
+Qed.
+
 End ElementsJetEnvironment.
