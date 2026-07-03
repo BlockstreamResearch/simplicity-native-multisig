@@ -79,7 +79,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            latexmk texlive-xetex texlive-latex-extra texlive-pictures fonts-lmodern
+            latexmk texlive-xetex texlive-latex-extra texlive-fonts-recommended \
+            texlive-pictures fonts-lmodern
 
       - name: Build paper PDF
         continue-on-error: true
