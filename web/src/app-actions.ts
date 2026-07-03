@@ -170,7 +170,9 @@ export function createAppActions(ctx: AppActionContext) {
       status: "scanning",
       message: "Scanning Liquid testnet",
     }));
-    const next = await run(ctx, "Scanning Liquid testnet", () => scanSession(session, info, claimed));
+    const next = await run(ctx, "Scanning Liquid testnet", () =>
+      scanSession(session, info, claimed, scan.votes),
+    );
     if (next) {
       setScan(next);
       setSelectedInputs(new Set(next.utxos.slice(0, 1).map(utxoKey)));

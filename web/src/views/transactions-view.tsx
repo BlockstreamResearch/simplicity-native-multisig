@@ -27,7 +27,7 @@ export function TransactionsView({ model }: TransactionsViewProps) {
 
   return (
     <section className="transaction-stack">
-      <section className="summary-grid compact">
+      <section className="summary-grid">
         <Metric label="All tx" value={scan.transactions.length.toString()} />
         <Metric label="Shown" value={visibleTransactions.length.toString()} />
         <Metric label="Votes" value={scan.votes.length.toString()} />

@@ -13,33 +13,25 @@
 }
 
 @media (max-width: 760px) {
-  .workspace,
-  .side-rail {
-    padding: 16px;
-  }
-
-  .topbar,
+  .topband-inner,
   .topbar-actions,
-  .empty-state {
+  .empty-state,
+  .transaction-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .tabs,
-  .segmented,
   .transaction-search {
-    width: 100%;
+    max-width: none;
   }
 
-  .tabs,
-  .segmented {
-    flex-wrap: wrap;
+  .flow-steps {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
-  .tabs button,
-  .segmented button {
-    flex: 1 1 calc(50% - 4px);
-    min-width: 0;
+  .flow-steps li + li::before {
+    display: none;
   }
 
   .summary-grid,
@@ -47,14 +39,8 @@
   .setup-grid,
   .network-grid,
   .proposal-cards,
-  .proposal-meta {
-    grid-template-columns: 1fr;
-  }
-
-  .funding-grid {
-    grid-template-columns: 1fr;
-  }
-
+  .proposal-meta,
+  .funding-grid,
   .output-row,
   .proposal-head,
   .execute-head,
@@ -63,10 +49,5 @@
   .proposal-voter,
   .announcement-row {
     grid-template-columns: 1fr;
-  }
-
-  .transaction-toolbar {
-    align-items: stretch;
-    flex-direction: column;
   }
 }

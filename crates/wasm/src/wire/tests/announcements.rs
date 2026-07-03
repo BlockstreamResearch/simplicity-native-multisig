@@ -71,7 +71,12 @@ fn participant_announcements_reconstruct_session_descriptor() -> anyhow::Result<
     assert_eq!(session.participants.len(), PARTICIPANT_COUNT);
     for (index, participant) in session.participants.iter().enumerate() {
         assert_eq!(participant.x_only_public_key, keys[index]);
-        assert_eq!(participant.vote_descriptor, participant_descriptors[index]);
+        // Announced descriptors are normalized into LWK-scannable CT watch
+        // descriptors that also cover the change chain.
+        assert_eq!(
+            participant.vote_descriptor,
+            format!("ct(elip151,elwpkh([00000000/84h/1h/{index}h]tpubDUMMY/<0;1>/*))"),
+        );
     }
 
     Ok(())

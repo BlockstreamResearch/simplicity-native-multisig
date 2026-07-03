@@ -27,6 +27,10 @@ export function SetupView({ model }: SetupViewProps) {
   return (
     <section className="setup-grid">
       <Panel title="Descriptor" icon={<FileSearch size={16} />}>
+        <p className="panel-note">
+          Paste a descriptor shared by the multisig creator, then scan announcements to recover
+          the participant descriptors and unlock the full session.
+        </p>
         <textarea
           value={descriptorText}
           onChange={(event) => setDescriptorText(event.target.value)}
@@ -50,6 +54,10 @@ export function SetupView({ model }: SetupViewProps) {
       </Panel>
 
       <Panel title="Demo setup" icon={<Fingerprint size={16} />} wide>
+        <p className="panel-note">
+          Three throwaway participant wallets for the demo flow. "Use" loads a mnemonic into the
+          claim and announcement forms.
+        </p>
         <div className="demo-list">
           {demoMnemonics.map((mnemonic, index) => (
             <div className="demo-row" key={mnemonic}>

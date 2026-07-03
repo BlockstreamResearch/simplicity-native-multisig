@@ -1,0 +1,113 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  SIMPLEX_VERSION: v0.0.5
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust (stable)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install Simplex
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://smplx.simplicity-lang.org | bash
+          BASE_DIR="${XDG_CONFIG_HOME:-$HOME}"
+          SIMPLEX_DIR="${SIMPLEX_DIR:-$BASE_DIR/.simplex}"
+          SIMPLEX_BIN_DIR="$SIMPLEX_DIR/bin"
+          "$SIMPLEX_BIN_DIR/simplexup" --install "$SIMPLEX_VERSION"
+          "$SIMPLEX_BIN_DIR/simplexup" --use "$SIMPLEX_VERSION"
+          echo "$SIMPLEX_BIN_DIR" >> "$GITHUB_PATH"
+          "$SIMPLEX_BIN_DIR/simplex" --version
+
+      - name: Generate contract artifacts
+        working-directory: crates/contracts
+        run: simplex build
+
+      - name: Install wasm-pack
+        run: curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build web app
+        working-directory: web
+        run: npm run build -- --base="/${{ github.event.repository.name }}/"
+
+      - name: Install TeX Live for the paper
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            latexmk texlive-xetex texlive-latex-extra texlive-pictures fonts-lmodern
+
+      - name: Build paper PDF
+        continue-on-error: true
+        working-directory: permissionless-simplicity-multisig
+        run: make pdf
+
+      - name: Add paper to site
+        run: |
+          if [ -f permissionless-simplicity-multisig/out/main.pdf ]; then
+            cp permissionless-simplicity-multisig/out/main.pdf web/dist/paper.pdf
+          else
+            echo "::warning::Paper PDF was not built; deploying the app without it"
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

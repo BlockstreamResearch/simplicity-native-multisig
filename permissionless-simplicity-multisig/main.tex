@@ -136,6 +136,22 @@
   We additionally require that every vote published by a multisig participant is published from this announced descriptor.
   This is what allows the discovery of votes and signed intent proposals.
   Scanning the multisig address yields the descriptors, and scanning the descriptors yields the votes.
+  For discovery to be complete, the announced descriptor must cover every script chain from which
+  the participant's wallet funds votes; a scanner widens a single external chain to the standard
+  receive-and-change multipath.
+
+  Publishing the descriptor deliberately forfeits script-level privacy: anyone can now watch the
+  participant's wallet transactions.
+  It does not forfeit the confidentiality of the participant's funds.
+  On Elements chains, wallet software generally scans only confidential descriptors, so a scanner
+  turns the announced public descriptor into a watch-only discovery wallet by attaching a blinding
+  key derived per ELIP-151 \cite{elip151}.
+  ELIP-151 derives the blinding key by hashing the ordinary descriptor, which makes the ordinary
+  descriptor itself the viewing secret.
+  Because the announced descriptor is public by construction, the derived viewing key is public as
+  well, and the wrapped descriptor MUST be treated as watch-only.
+  It must never be used to derive receiving addresses, since amounts received by such addresses
+  would be readable by anyone holding the announcement.
 
   \subsection{Publishing Votes}
   \label{sec:votes}

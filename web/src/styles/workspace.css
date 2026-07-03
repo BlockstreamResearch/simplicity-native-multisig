@@ -1,39 +1,277 @@
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
-  gap: 14px;
+  gap: 8px;
 }
 
 .setup-grid {
   display: grid;
   grid-template-columns: minmax(320px, 0.85fr) minmax(420px, 1.15fr);
-  gap: 14px;
+  gap: 8px;
 }
 
-.transaction-stack {
-  display: grid;
-  gap: 14px;
-}
-
+.transaction-stack,
 .proposal-stack {
   display: grid;
-  gap: 14px;
+  gap: 8px;
 }
+
+/* ---- panels ---- */
+
+.panel {
+  border: 1px solid #ccc;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+
+.panel.wide {
+  grid-column: 1 / -1;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-title h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.panel-icon {
+  display: inline-flex;
+}
+
+.panel-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-note {
+  margin: 0;
+  color: #555;
+  font-size: 12px;
+}
+
+/* ---- tables ---- */
+
+.table-wrap {
+  overflow: auto;
+}
+
+.fixed-table {
+  min-height: 160px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  color: #555;
+  font-size: 12px;
+  font-weight: normal;
+  text-align: left;
+  padding: 0 6px 6px;
+  border-bottom: 1px solid #999;
+}
+
+td {
+  padding: 6px;
+  border-bottom: 1px solid #ddd;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.empty-row {
+  color: #777;
+  text-align: center;
+  height: 90px;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.mnemonic {
+  min-height: 90px;
+}
+
+.mnemonic.compact {
+  min-height: 70px;
+}
+
+/* ---- shared data boxes ---- */
+
+.claim-box,
+.vote-detail,
+.vote-row,
+.code-block {
+  border: 1px solid #ccc;
+}
+
+.claim-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+}
+
+.claim-box div,
+.vote-detail {
+  display: grid;
+  gap: 2px;
+}
+
+.claim-box span,
+.vote-detail small,
+.empty-copy {
+  color: #555;
+  font-size: 12px;
+}
+
+.empty-copy {
+  margin: 0;
+}
+
+/* ---- faucet ---- */
+
+.funding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.funding-target,
+.faucet-result {
+  border: 1px solid #ccc;
+}
+
+.funding-target {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.funding-target > div:first-child,
+.faucet-result > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.funding-target span,
+.faucet-result span,
+.faucet-note {
+  color: #555;
+  font-size: 12px;
+}
+
+.funding-target strong,
+.faucet-result strong {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.faucet-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.faucet-result {
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ---- proposal summary strip ---- */
+
+.proposal-head {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 120px auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.proposal-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.proposal-head div > span:last-child {
+  color: #555;
+  font-size: 12px;
+}
+
+.proposal-result {
+  display: grid;
+  gap: 8px;
+}
+
+.inline-stat,
+.network-grid > div {
+  display: grid;
+  gap: 2px;
+}
+
+.inline-stat span,
+.network-grid span {
+  color: #555;
+  font-size: 12px;
+}
+
+.inline-stat strong,
+.network-grid strong {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.network-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.network-grid.tight {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.network-grid strong {
+  overflow-wrap: anywhere;
+}
+
+.outputs-list {
+  display: grid;
+  gap: 6px;
+}
+
+/* ---- proposal cards ---- */
 
 .proposal-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 .proposal-card {
-  border: 1px solid #dfe6e3;
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 14px;
+  border: 1px solid #ccc;
+  padding: 12px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
+  align-content: start;
 }
 
 .proposal-card-head,
@@ -46,274 +284,66 @@
 
 .proposal-card-head > div {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
 .proposal-card-head strong {
   overflow-wrap: anywhere;
+  font-family: monospace;
+  font-size: 12px;
 }
 
 .proposal-state {
-  min-height: 26px;
-  border-radius: 999px;
-  padding: 5px 9px;
-  font-size: 11px;
-  font-weight: 760;
+  border: 1px solid #999;
+  padding: 2px 8px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
 .proposal-state.ready {
-  background: #e6f3ef;
-  color: #145c51;
-}
-
-.proposal-state.collecting {
-  background: #fff7e3;
-  color: #6d4b12;
+  font-weight: bold;
 }
 
 .proposal-meta {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .proposal-meta > div {
-  border-top: 1px solid #eef2f0;
-  padding-top: 9px;
+  border-top: 1px solid #ddd;
+  padding-top: 6px;
   display: grid;
-  gap: 3px;
+  gap: 2px;
 }
 
 .proposal-meta span,
 .proposal-voter span {
-  color: #74817d;
-  font-size: 11px;
-  font-weight: 720;
+  color: #555;
+  font-size: 12px;
+}
+
+.proposal-meta strong {
+  font-family: monospace;
+  font-size: 13px;
 }
 
 .proposal-voters {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .proposal-voter {
-  min-height: 34px;
-  border: 1px solid #eef2f0;
-  border-radius: 6px;
-  background: #fbfcfb;
-  padding: 7px 9px;
+  border: 1px solid #ddd;
+  padding: 5px 8px;
   display: grid;
   grid-template-columns: minmax(120px, 1fr) minmax(120px, 1fr) auto;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   font-size: 12px;
 }
 
-.panel {
-  padding: 16px;
-  display: grid;
-  gap: 14px;
-  align-content: start;
-  min-width: 0;
-}
-
-.panel.wide {
-  grid-column: 1 / -1;
-}
-
-.panel-title h3 {
-  font-size: 14px;
-}
-
-.table-wrap {
-  overflow: auto;
-}
-
-.fixed-table {
-  min-height: 180px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-th {
-  color: #74817d;
-  font-size: 11px;
-  text-align: left;
-  padding: 0 8px 9px;
-  border-bottom: 1px solid #e5ebe8;
-}
-
-td {
-  padding: 10px 8px;
-  border-bottom: 1px solid #eef2f0;
-  white-space: nowrap;
-}
-
-.empty-row {
-  color: #8c9994;
-  text-align: center;
-  height: 112px;
-}
-
-.mnemonic {
-  min-height: 96px;
-}
-
-.mnemonic.compact {
-  min-height: 74px;
-}
-
-.claim-box,
-.vote-detail,
-.vote-row,
-.code-block {
-  border: 1px solid #dfe6e3;
-  border-radius: 6px;
-  background: #fbfcfb;
-}
-
-.claim-box {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  color: #145c51;
-}
-
-.claim-box div,
-.vote-detail {
-  display: grid;
-  gap: 3px;
-}
-
-.claim-box span,
-.vote-detail small,
-.empty-copy {
-  color: #74817d;
-  font-size: 12px;
-}
-
-.funding-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.funding-target,
-.faucet-result {
-  border: 1px solid #dfe6e3;
-  border-radius: 6px;
-  background: #fbfcfb;
-}
-
-.funding-target {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-}
-
-.funding-target > div:first-child,
-.faucet-result > div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.funding-target span,
-.faucet-result span,
-.faucet-note {
-  color: #74817d;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.funding-target strong,
-.faucet-result strong {
-  overflow-wrap: anywhere;
-}
-
-.faucet-note {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.faucet-result {
-  min-height: 48px;
-  padding: 10px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.proposal-head {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 120px auto;
-  align-items: center;
-  gap: 12px;
-}
-
-.proposal-result {
-  display: grid;
-  gap: 10px;
-}
-
-.inline-stat,
-.network-grid > div {
-  display: grid;
-  gap: 4px;
-}
-
-.inline-stat {
-  border-top: 1px solid #eef2f0;
-  padding-top: 10px;
-}
-
-.inline-stat span,
-.network-grid span {
-  color: #74817d;
-  font-size: 12px;
-  font-weight: 720;
-}
-
-.network-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.network-grid.tight {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.network-grid strong {
-  overflow-wrap: anywhere;
-}
-
-.proposal-head div {
-  display: grid;
-  gap: 4px;
-}
-
-.proposal-head div > span:last-child {
-  color: #74817d;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.fee-input {
-  min-height: 36px;
-}
-
-.outputs-list {
-  display: grid;
-  gap: 8px;
+.proposal-voter strong {
+  font-family: monospace;
 }

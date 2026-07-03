@@ -1,94 +1,168 @@
+/* ---- workflow stepper ---- */
+
+.flow-bar {
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.flow-bar.wide {
+  grid-column: 1 / -1;
+}
+
+.flow-note {
+  color: #555;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.flow-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  row-gap: 6px;
+  flex-wrap: wrap;
+}
+
+.flow-steps li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #777;
+}
+
+.flow-steps li + li::before {
+  content: "\2192";
+  margin: 0 6px;
+  color: #999;
+}
+
+.flow-dot {
+  display: inline-flex;
+  align-items: center;
+}
+
+.flow-steps li.done {
+  color: #111;
+}
+
+.flow-steps li.active {
+  color: #111;
+  font-weight: bold;
+}
+
+.flow-meta {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+/* ---- proposal output rows ---- */
+
 .output-row {
   display: grid;
-  grid-template-columns: 110px minmax(180px, 1fr) minmax(180px, 1fr) 110px 38px;
-  gap: 8px;
+  grid-template-columns: 110px minmax(180px, 1fr) minmax(180px, 1fr) 110px 34px;
+  gap: 6px;
   align-items: center;
 }
 
 .icon-only {
-  width: 38px;
+  width: 34px;
   padding: 0;
 }
 
 .stake-input {
-  width: 104px;
+  width: 100px;
+}
+
+.fee-input {
+  min-height: 30px;
 }
 
 .vote-detail {
-  padding: 12px;
+  padding: 8px;
 }
 
 .manual-decode {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
+
+/* ---- vote rows ---- */
 
 .vote-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .vote-row {
-  min-height: 40px;
-  padding: 9px 10px;
+  padding: 6px 8px;
   display: grid;
   grid-template-columns: minmax(100px, 1fr) minmax(120px, 1fr) minmax(110px, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.vote-row strong,
+.vote-detail strong {
+  font-family: monospace;
 }
 
 .vote-row small {
-  color: #74817d;
+  color: #555;
   overflow-wrap: anywhere;
+  font-family: monospace;
 }
 
 .row-actions {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
 }
 
-.row-actions button {
-  min-height: 30px;
-  padding: 0 10px;
-}
+/* ---- execute panel ---- */
 
 .execute-head {
   display: grid;
   grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .execute-head div {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .execute-funding {
-  border-top: 1px solid #eef2f0;
+  border-top: 1px solid #ddd;
   display: grid;
-  gap: 12px;
-  padding-top: 12px;
-}
-
-.execute-funding.enabled {
-  border-color: #d7dfdc;
+  gap: 8px;
+  padding-top: 8px;
 }
 
 .execute-funding-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
 }
 
 .toggle-row {
   grid-template-columns: auto 1fr;
   align-items: center;
-  color: #1f2a27;
+  color: #111;
   font-size: 13px;
 }
 
@@ -99,78 +173,57 @@
 .executor-controls {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) 120px;
-  gap: 12px;
-}
-
-.fee-rate-status {
-  color: #74817d;
-  font-size: 11px;
-  font-weight: 720;
-  white-space: nowrap;
-}
-
-.fee-rate-status.fetched {
-  color: #126d61;
-}
-
-.fee-rate-status.fallback {
-  color: #8a6420;
-}
-
-.announcement-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.announcement-head > div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.announcement-head strong {
-  overflow-wrap: anywhere;
-}
-
-.announcement-list {
-  display: grid;
   gap: 8px;
 }
 
+.fee-rate-status {
+  color: #555;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fee-rate-status.fallback {
+  font-weight: bold;
+}
+
+/* ---- announcements ---- */
+
+.announcement-list {
+  display: grid;
+  gap: 6px;
+}
+
 .announcement-row {
-  min-height: 44px;
-  border: 1px solid #dfe6e3;
-  border-radius: 6px;
-  background: #fbfcfb;
-  padding: 9px 10px;
+  border: 1px solid #ddd;
+  padding: 6px 8px;
   display: grid;
   grid-template-columns: minmax(160px, 0.7fr) minmax(240px, 1fr) auto;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
 }
 
 .announcement-row > div {
   display: grid;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
 }
 
 .announcement-row span {
-  color: #74817d;
+  color: #555;
   font-size: 12px;
-  font-weight: 720;
+}
+
+.announcement-row strong {
+  font-family: monospace;
+  font-size: 12px;
 }
 
 .announcement-row code {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: #31413c;
-  font-size: 12px;
-  font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, ui-monospace, monospace;
 }
+
+/* ---- demo mnemonics ---- */
 
 .demo-list {
   display: grid;
@@ -180,9 +233,9 @@
   display: grid;
   grid-template-columns: minmax(180px, 0.4fr) minmax(280px, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  border-top: 1px solid #eef2f0;
-  padding: 12px 0;
+  gap: 8px;
+  border-top: 1px solid #ddd;
+  padding: 8px 0;
 }
 
 .demo-row:first-child {
@@ -196,65 +249,62 @@
 
 .demo-row > div:first-child {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .demo-row span {
-  color: #74817d;
+  color: #555;
   font-size: 12px;
-  font-weight: 720;
+}
+
+.demo-row strong {
+  font-family: monospace;
+  font-size: 12px;
 }
 
 .demo-row code {
-  color: #31413c;
-  font-size: 12px;
-  line-height: 1.45;
   overflow-wrap: anywhere;
-  font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, ui-monospace, monospace;
 }
+
+/* ---- transactions ---- */
 
 .transaction-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .transaction-search {
-  max-width: 340px;
+  max-width: 320px;
 }
 
 .transaction-table {
-  max-height: calc(100vh - 340px);
-  min-height: 280px;
+  max-height: calc(100vh - 320px);
+  min-height: 240px;
 }
+
+/* ---- code blocks ---- */
 
 .code-block {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
 }
 
 .code-block > div {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  color: #66736f;
+  gap: 8px;
+  color: #555;
   font-size: 12px;
-  font-weight: 700;
 }
 
 .code-block code {
   display: block;
   max-height: 120px;
   overflow: auto;
-  color: #31413c;
-  font-size: 12px;
-  line-height: 1.45;
   overflow-wrap: anywhere;
-  font-family:
-    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, ui-monospace, monospace;
 }

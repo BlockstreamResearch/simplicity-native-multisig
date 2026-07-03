@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { amountFromInput, amountLabel } from "../app-helpers";
 import type { AppModel } from "../app-model";
-import { CodeBlock, Panel } from "../components";
+import { CodeBlock, FlowSteps, Panel } from "../components";
+import type { FlowStep } from "../components";
 import { middle } from "../lib/format";
 
 type CreateViewProps = {
@@ -41,8 +42,31 @@ export function CreateView({ model }: CreateViewProps) {
     threshold,
   } = model;
 
+  const announcedCount = announcementScan.announcements.length;
+  const participantCount = activeMultisigDescriptor?.participants.length;
+  const allAnnounced = participantCount !== undefined && announcedCount >= participantCount;
+  const coordinationSteps: FlowStep[] = [
+    {
+      label: "Create or load descriptor",
+      state: activeMultisigDescriptor ? "done" : "active",
+    },
+    {
+      label: "Publish announcements",
+      meta: participantCount !== undefined ? `${announcedCount}/${participantCount}` : undefined,
+      state: allAnnounced ? "done" : activeMultisigDescriptor ? "active" : "todo",
+    },
+    {
+      label: "Session ready",
+      state: session ? "done" : allAnnounced ? "active" : "todo",
+    },
+  ];
+
   return (
     <section className="setup-grid">
+      <div className="flow-bar wide">
+        <FlowSteps steps={coordinationSteps} />
+      </div>
+
       <Panel title="Create multisig" icon={<KeyRound size={16} />}>
         <label>
           Threshold
@@ -148,12 +172,11 @@ export function CreateView({ model }: CreateViewProps) {
         </button>
       </Panel>
 
-      <Panel title="Recovered participants" icon={<ShieldCheck size={16} />} wide>
-        <div className="announcement-head">
-          <div>
-            <span className="muted-label">Status</span>
-            <strong>{announcementScan.message}</strong>
-          </div>
+      <Panel
+        title="Recovered participants"
+        icon={<ShieldCheck size={16} />}
+        wide
+        actions={
           <button
             onClick={() => refreshAnnouncements()}
             disabled={
@@ -170,7 +193,9 @@ export function CreateView({ model }: CreateViewProps) {
             )}
             Scan
           </button>
-        </div>
+        }
+      >
+        <p className="panel-note">{announcementScan.message}</p>
         <div className="announcement-list">
           {activeMultisigDescriptor?.participants.map((participant) => {
             const announcement = announcementScan.announcements.find(

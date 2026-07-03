@@ -20,7 +20,7 @@ export function ProposalsView({ model }: ProposalsViewProps) {
 
   return (
     <section className="proposal-stack">
-      <section className="summary-grid compact">
+      <section className="summary-grid">
         <Metric label="Spendable proposals" value={proposalGroups.length.toString()} />
         <Metric label="Spendable votes" value={spendableVotes.length.toString()} />
         <Metric label="Ready" value={proposalGroups.filter((item) => item.ready).length.toString()} />

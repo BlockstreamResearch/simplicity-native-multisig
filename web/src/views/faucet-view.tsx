@@ -1,4 +1,4 @@
-import { Droplets, ExternalLink, Loader2 } from "lucide-react";
+import { Copy, Droplets, ExternalLink, Loader2 } from "lucide-react";
 import { assetLabel } from "../app-helpers";
 import type { AppModel } from "../app-model";
 import { Panel } from "../components";
@@ -9,6 +9,11 @@ import { liquidTestnetTestAssetId } from "./liquid-testnet-display";
 type FaucetViewProps = {
   model: AppModel;
 };
+
+// In-app faucet requests go through the Vite dev-server proxy (the faucet API
+// does not send CORS headers), so they only work in local development. Static
+// deployments fall back to the external faucet page.
+const inAppRequestsAvailable = import.meta.env.DEV;
 
 export function FaucetView({ model }: FaucetViewProps) {
   const { claimed, currentMultisigAddress, faucetBusy, faucetResult, fundFromFaucet, info } = model;
@@ -35,7 +40,11 @@ export function FaucetView({ model }: FaucetViewProps) {
           />
         </div>
         <div className="faucet-note">
-          <span>Faucet sends 100,000 L-BTC sats or 5,000 TEST units.</span>
+          <span>
+            {inAppRequestsAvailable
+              ? "Faucet sends 100,000 L-BTC sats or 5,000 TEST units."
+              : "In-app faucet requests need the local dev proxy. Copy an address and use the external faucet page instead."}
+          </span>
           <span>TEST asset {middle(liquidTestnetTestAssetId, 10)}</span>
         </div>
         {faucetResult && (
@@ -82,32 +91,42 @@ function FundingTarget({
         <strong>{address ? middle(address, 18) : "Not available"}</strong>
       </div>
       <div className="button-row">
-        <button onClick={() => onFund(target, "lbtc")} disabled={disabled || busy !== undefined}>
-          {busy === `${target}:lbtc` ? (
-            <Loader2 className="spin" size={15} />
-          ) : (
-            <Droplets size={15} />
-          )}
-          L-BTC
-        </button>
-        <button onClick={() => onFund(target, "test")} disabled={disabled || busy !== undefined}>
-          {busy === `${target}:test` ? (
-            <Loader2 className="spin" size={15} />
-          ) : (
-            <Droplets size={15} />
-          )}
-          TEST
-        </button>
+        {inAppRequestsAvailable && (
+          <>
+            <button onClick={() => onFund(target, "lbtc")} disabled={disabled || busy !== undefined}>
+              {busy === `${target}:lbtc` ? (
+                <Loader2 className="spin" size={15} />
+              ) : (
+                <Droplets size={15} />
+              )}
+              L-BTC
+            </button>
+            <button onClick={() => onFund(target, "test")} disabled={disabled || busy !== undefined}>
+              {busy === `${target}:test` ? (
+                <Loader2 className="spin" size={15} />
+              ) : (
+                <Droplets size={15} />
+              )}
+              TEST
+            </button>
+          </>
+        )}
         {address && (
-          <a
-            className="button-link"
-            href="https://liquidtestnet.com/faucet"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <ExternalLink size={14} />
-            Open
-          </a>
+          <>
+            <button onClick={() => navigator.clipboard.writeText(address)}>
+              <Copy size={14} />
+              Copy address
+            </button>
+            <a
+              className="button-link"
+              href="https://liquidtestnet.com/faucet"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink size={14} />
+              Open
+            </a>
+          </>
         )}
       </div>
     </div>

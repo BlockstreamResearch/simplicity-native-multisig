@@ -23,10 +23,49 @@ import {
   waterfallsClient,
 } from "./network";
 
+async function validatedScanVote(
+  session: MultisigSession,
+  info: LiquidTestnetInfo,
+  txid: string,
+  txHex: string,
+  multisigUtxos: WireUtxo[],
+): Promise<ScanVote | undefined> {
+  const decoded = await decodeVoteTransactionAuto(session, txHex);
+  const voteUtxo = decoded.voteUtxo;
+  const proposalInputsLive = decoded.proposalInputOutpoints.every((outpoint) =>
+    multisigUtxos.some((utxo) => utxo.txid === outpoint.txid && utxo.vout === outpoint.vout),
+  );
+  if (!voteUtxo || !proposalInputsLive) {
+    return undefined;
+  }
+  const outspend = await esploraJson<{ spent: boolean }>(
+    info,
+    `/tx/${voteUtxo.txid}/outspend/${voteUtxo.vout}`,
+  );
+  if (outspend.spent) {
+    return undefined;
+  }
+
+  return {
+    participantIndex: decoded.participantIndex,
+    txid,
+    messageHash: decoded.messageHash,
+    signatureHex: decoded.participantSignatureHex,
+    proposedPsetBase64: decoded.proposedPsetBase64,
+    proposedTxHex: decoded.proposedTxHex,
+    totalProposedOutputs: decoded.totalProposedOutputs,
+    proposalInputOutpoints: decoded.proposalInputOutpoints,
+    voteAddress: decoded.voteAddress,
+    voteUtxo,
+    explorerUrl: `${info.explorerTxUrlPrefix}${txid}`,
+  };
+}
+
 export async function scanSession(
   session: MultisigSession,
   info: LiquidTestnetInfo,
   claimed?: ClaimedParticipant,
+  knownVotes: ScanVote[] = [],
 ): Promise<ScanState> {
   const lwk = await loadLwk();
   const network = lwk.Network.testnet();
@@ -44,7 +83,10 @@ export async function scanSession(
         walletScanIndex,
       )
         .then((scan) => ({ participant, scan }))
-        .catch(() => ({ participant, scan: undefined }));
+        .catch((error: unknown) => {
+          console.warn(`Participant ${participant.index + 1} vote wallet scan failed:`, error);
+          return { participant, scan: undefined };
+        });
     }),
   );
 
@@ -54,39 +96,41 @@ export async function scanSession(
     }
 
     for (const tx of scan.wallet.transactions()) {
+      const txid = tx.txid().toString();
+      if (votes.some((vote) => vote.txid === txid)) {
+        continue;
+      }
       try {
-        const decoded = await decodeVoteTransactionAuto(session, tx.tx().toString());
-        const voteUtxo = decoded.voteUtxo;
-        const proposalInputsLive = decoded.proposalInputOutpoints.every((outpoint) =>
-          multisig.utxos.some((utxo) => utxo.txid === outpoint.txid && utxo.vout === outpoint.vout),
-        );
-        if (!voteUtxo || !proposalInputsLive) {
-          continue;
+        const vote = await validatedScanVote(session, info, txid, tx.tx().toString(), multisig.utxos);
+        if (vote) {
+          votes.push(vote);
         }
-        const outspend = await esploraJson<{ spent: boolean }>(
-          info,
-          `/tx/${voteUtxo.txid}/outspend/${voteUtxo.vout}`,
-        );
-        if (outspend.spent) {
-          continue;
-        }
-
-        votes.push({
-          participantIndex: decoded.participantIndex,
-          txid: tx.txid().toString(),
-          messageHash: decoded.messageHash,
-          signatureHex: decoded.participantSignatureHex,
-          proposedPsetBase64: decoded.proposedPsetBase64,
-          proposedTxHex: decoded.proposedTxHex,
-          totalProposedOutputs: decoded.totalProposedOutputs,
-          proposalInputOutpoints: decoded.proposalInputOutpoints,
-          voteAddress: decoded.voteAddress,
-          voteUtxo,
-          explorerUrl: `${info.explorerTxUrlPrefix}${tx.txid().toString()}`,
-        });
       } catch {
         // Most wallet transactions are not vote carrier transactions.
       }
+    }
+  }
+
+  // Wallet indexers can lag behind just-broadcast vote transactions. Keep
+  // votes that are already known locally, as long as they still validate
+  // against esplora (unspent vote UTXO, live proposal inputs).
+  for (const known of knownVotes) {
+    if (votes.some((vote) => vote.txid === known.txid)) {
+      continue;
+    }
+    try {
+      const vote = await validatedScanVote(
+        session,
+        info,
+        known.txid,
+        await esploraTxHex(info, known.txid),
+        multisig.utxos,
+      );
+      if (vote) {
+        votes.push(vote);
+      }
+    } catch {
+      // The known vote disappeared (evicted or reorged away): drop it.
     }
   }
 

@@ -97,10 +97,10 @@ pub(super) fn session_from_parts(
         .zip(participant_descriptors)
         .enumerate()
         .map(
-            |(index, (x_only_public_key, vote_descriptor))| SessionParticipant {
+            |(index, (x_only_public_key, announced_descriptor))| SessionParticipant {
                 index,
                 x_only_public_key,
-                vote_descriptor,
+                vote_descriptor: watch_descriptor(&announced_descriptor),
             },
         )
         .collect();
@@ -114,6 +114,27 @@ pub(super) fn session_from_parts(
         multisig_address,
         lwk_descriptor: format!(":{multisig_script_pubkey}"),
     })
+}
+
+/// Convert an announced public participant descriptor into a wallet descriptor
+/// that LWK can scan.
+///
+/// Announcements deliberately exclude blinding material, but LWK wallets only
+/// accept CT descriptors, so scanning uses an ELIP-151 derived blinding key:
+/// it is computed deterministically from the public descriptor, so wrapping
+/// adds no secret material. Single-chain `/0/*` descriptors are also widened
+/// to the standard `<0;1>` multipath so vote transactions funded from change
+/// outputs stay discoverable.
+fn watch_descriptor(announced: &str) -> String {
+    let announced = announced.trim();
+    let widened = announced
+        .strip_suffix("/0/*)")
+        .map_or_else(|| announced.to_owned(), |base| format!("{base}/<0;1>/*)"));
+    if widened.starts_with("ct(") {
+        widened
+    } else {
+        format!("ct(elip151,{widened})")
+    }
 }
 
 pub(super) fn multisig_descriptor_from_parts(
