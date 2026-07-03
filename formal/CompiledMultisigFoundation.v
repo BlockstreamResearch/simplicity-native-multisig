@@ -5,8 +5,16 @@ From MultisigFormal Require Import
   MultisigCertificate MultisigTypedCertificate SimplicityByteDecoder
   TypedBridge.
 
-Set Implicit Arguments.
-Set Strict Implicit.
+(*
+  PROOF-STYLE CONSTRAINT (memory): this file must NOT enable
+  [Set Implicit Arguments]/[Set Strict Implicit].  With those flags on,
+  Qed-time kernel checking of the theorems below loses sharing on the
+  statement types and re-runs the concrete typed-certificate expansion and
+  byte decoder inside the kernel (observed: >26 GB RSS on the first Qed).
+  With the flags off the same proofs check in milliseconds.  All internal and
+  downstream applications use explicit [@] application, so implicit-argument
+  statuses are not relied upon anywhere.
+*)
 
 (*
   Concrete compiled-artifact foundation bridge.

@@ -1,11 +1,6 @@
 use std::fmt::Write as _;
 
 use super::CompiledMultisigCertificate;
-use super::coq_typed_text::{
-    write_coq_typed_bridge_evidence, write_coq_typed_certificate_definition,
-    write_coq_typed_decode_evidence, write_coq_typed_program_definitions,
-    write_coq_typed_translation_theorems,
-};
 use super::coq_types::coq_type_artifact;
 
 const ARROW_CHUNK_ENTRIES: usize = 330;
@@ -21,15 +16,21 @@ pub struct CoqModuleFile {
 }
 
 impl CompiledMultisigCertificate {
-    /// Split Coq modules for the byte certificate and compact typed artifact.
+    /// Split Coq DATA modules for the byte certificate and compact typed
+    /// artifact.
     ///
     /// The split layout matches the checked formal modules and keeps generated
-    /// data files small enough to review directly.
+    /// data files small enough to review directly.  Only data is emitted:
+    /// the byte certificate record (`CompiledMultisigByteData.v`), the compact
+    /// type definitions, arrow definitions, per-node type table chunks, and
+    /// the compact typed certificate record that ties them together
+    /// (`CompiledMultisigTypedExampleData.v`).  Proof modules over this data
+    /// are hand-maintained in the formal tree and are never regenerated.
     #[must_use]
     pub fn coq_typed_certificate_modules(&self) -> Vec<CoqModuleFile> {
         let artifact = coq_type_artifact(self);
         let mut modules = vec![CoqModuleFile {
-            filename: String::from("CompiledMultisigExample.v"),
+            filename: String::from("CompiledMultisigByteData.v"),
             contents: self.coq_certificate_module(),
         }];
 
@@ -71,21 +72,20 @@ impl CompiledMultisigCertificate {
         let mut data_module = String::new();
         data_module.push_str("From Coq Require Import List.\n");
         data_module.push_str("From MultisigFormal Require Import\n");
-        data_module.push_str(
-            "  CompiledMultisigExample MultisigTypedCertificate CompiledMultisigTypedExampleTypeDefs",
-        );
+        data_module.push_str("  CompiledMultisigByteData MultisigTypedCertificate\n");
+        data_module.push_str("  CompiledMultisigTypedExampleTypeDefs");
 
         for number in 1..=arrow_names.len() {
             write!(
                 data_module,
-                " CompiledMultisigTypedExampleArrowDefs{number}"
+                "\n  CompiledMultisigTypedExampleArrowDefs{number}"
             )
             .expect("writing to a String cannot fail");
         }
         for number in 1..=type_table_names.len() {
             write!(
                 data_module,
-                " CompiledMultisigTypedExampleTypeTable{number}"
+                "\n  CompiledMultisigTypedExampleTypeTable{number}"
             )
             .expect("writing to a String cannot fail");
         }
@@ -130,27 +130,6 @@ impl CompiledMultisigCertificate {
         modules.push(CoqModuleFile {
             filename: String::from("CompiledMultisigTypedExampleData.v"),
             contents: data_module,
-        });
-
-        let mut wrapper = String::new();
-        wrapper.push_str("From Coq Require Import List.\n");
-        wrapper.push_str("From MultisigFormal Require Export CompiledMultisigTypedExampleData.\n");
-        wrapper.push_str("From MultisigFormal Require Import\n");
-        wrapper
-            .push_str("  BridgeTypeTranslation CmrWellFormed SimplicityByteDecoder TypedBridge\n");
-        wrapper.push_str(
-            "  MultisigCertificate MultisigTypedCertificate CompiledMultisigExample.\n\n",
-        );
-        wrapper.push_str("Import ListNotations.\n\n");
-        write_coq_typed_certificate_definition(&mut wrapper);
-        write_coq_typed_translation_theorems(&mut wrapper);
-        write_coq_typed_program_definitions(&mut wrapper);
-        write_coq_typed_decode_evidence(&mut wrapper);
-        write_coq_typed_bridge_evidence(&mut wrapper);
-
-        modules.push(CoqModuleFile {
-            filename: String::from("CompiledMultisigTypedExample.v"),
-            contents: wrapper,
         });
 
         modules

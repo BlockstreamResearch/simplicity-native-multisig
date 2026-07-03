@@ -20,3 +20,7 @@ logs/
 .vscode/
 *.swp
 *.swo
+
+# Playwright output
+test-results/
+playwright-report/

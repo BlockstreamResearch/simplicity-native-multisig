@@ -8,3 +8,5 @@ CoqMakefile.conf
 *.aux
 .*.aux
 .lia.cache
+.foundation-coq/
+.rocq-compile-artifacts/

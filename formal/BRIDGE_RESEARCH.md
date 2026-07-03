@@ -1,5 +1,20 @@
 # Compiled-program bridge research
 
+> **Status (2026-07-03).** Kept as design history; the layered plan below is
+> now largely realized, with layer numbers mapping to the current tree as
+> follows. Layers 1-3 (artifact identity, byte decoding, typing) are complete
+> and stronger than planned: the CMR gap flagged in layer 2 was closed by a
+> self-contained FIPS-proven SHA-256 algebra instead of the upstream
+> `Digest/MerkleRoot` instantiation (`CompiledMultisigRealCmr.v`), and the
+> checked run is discharged outright (`CompiledMultisigRealSecurity.v`).
+> Layer 4 (foundation term construction) exists behind provider obligations.
+> Layer 5 (primitive semantics) is implemented executably in
+> `ElementsConcreteJets.v`, and the deployed bytes now run inside Coq with
+> proven accept/reject behavior on concrete scenarios
+> (`CompiledMultisigExecution.v`). Layer 6 — symbolic execution/refinement
+> for arbitrary environments — is the one remaining open obligation; layer 7
+> already consumes its conclusion. Current state: `README.md`.
+
 This note answers the concrete bridge question: if we already have a compiled
 multisig program represented as Simplicity bytes/opcodes, what is still missing
 before the Coq proof is a proof about that compiled artifact?

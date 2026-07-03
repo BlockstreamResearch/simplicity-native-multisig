@@ -1,5 +1,28 @@
 # Bridge implementation path
 
+> **Status (2026-07-03).** This options analysis is kept as design history.
+> The path actually taken combines Option C with a self-contained twist and
+> adds an executable-semantics layer:
+>
+> - Option C (Coq byte decoder) is fully implemented and carried further than
+>   planned: instead of instantiating `FoundationCmrOps` from the upstream
+>   foundation (blocked by the Coq 8.17 / Rocq 9.1 version wall), the tree
+>   grew a self-contained SHA-256 (`Sha256Core.v`, FIPS-vector-proven) and
+>   Simplicity CMR layer (`SimplicityCmrSha.v`, byte-pinned to
+>   rust-simplicity), so `CompiledMultisigRealCmr.v` proves the deployed
+>   bytes' CMR byte-for-byte with no exporter or foundation trust, and
+>   `CompiledMultisigRealSecurity.v` discharges the checked run entirely.
+> - Option B survives as the data-only certificate exporter (bytes + compact
+>   type/arrow tables); it emits no proof text.
+> - Beyond the options below, `SimplicityStructuralEval.v` +
+>   `ElementsConcreteJets.v` + `CompiledMultisigExecution.v` now execute the
+>   deployed bytes inside Coq and prove concrete accept/reject behavior.
+> - Recommended-path steps 1-6 below are done (step 4's foundation-CMR
+>   instantiation was superseded by the self-contained algebra); step 7 — the
+>   universal execution-refinement theorem — is the remaining open item.
+>
+> Current state: `README.md`. Extraction plan: `GENERALIZATION.md`.
+
 ## Bridge implementation options
 
 ### Option A: Source-level bridge first

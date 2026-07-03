@@ -103,7 +103,6 @@ pub struct MultisigBuilder {
 mod certificate;
 mod coq;
 mod coq_typed;
-mod coq_typed_text;
 mod coq_types;
 mod encoding;
 

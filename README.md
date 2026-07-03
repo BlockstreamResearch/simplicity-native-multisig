@@ -5,7 +5,11 @@
 - `crates/contracts` - core Simplicity contracts and Rust contract helpers.
 - `crates/wasm` - WebAssembly bindings surface for browser and JavaScript consumers.
 - `web` - web interface.
-- `formal` - Rocq formal verification of the multisig contracts.
+- `formal` - Rocq formal verification of the multisig contracts: axiom-free,
+  kernel-checked proofs from the abstract security model down to the deployed
+  compiled bytes (decode, type check, byte-exact CMR via self-contained
+  SHA-256, and in-Coq execution of the deployed program). See
+  `formal/README.md` for the claims and their trust boundaries.
 - `permissionless-simplicity-multisig` - paper: Permissionless Multisig using Simplicity.
 - `programmable-signature-tex` - original paper draft: Programmable Signatures with Simplicity.
 

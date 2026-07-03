@@ -99,7 +99,7 @@ fn compiled_certificate_exports_coq_module() -> anyhow::Result<()> {
     assert!(coq_module.contains("From Coq Require Import List."));
     assert!(
         coq_module.contains(
-            "From MultisigFormal Require Import\n  SimplicityByteDecoder MultisigCertificate MultisigSourceBlocks."
+            "From MultisigFormal Require Import SimplicityByteDecoder MultisigCertificate."
         )
     );
     assert!(coq_module.contains(
@@ -114,148 +114,15 @@ fn compiled_certificate_exports_coq_module() -> anyhow::Result<()> {
         "  cert_cmr_bytes := {}",
         coq_byte_list(certificate.cmr.as_ref().iter().copied())
     )));
-    assert!(!coq_module.contains("Definition compiled_multisig_type_table"));
-    assert!(!coq_module.contains("compiled_multisig_typed_certificate"));
-    assert!(
-        coq_module
-            .contains("Definition compiled_multisig_decoded_program : option StructuralProgram :=")
-    );
-    assert!(coq_module.contains("  check_compiled_multisig_byte_certificate_without_cmr"));
-    assert!(coq_module.contains("    compiled_multisig_certificate."));
-    assert!(coq_module.contains(
-        "Definition compiled_multisig_streaming_decoded_program : option StructuralProgram :="
-    ));
-    assert!(
-        coq_module.contains("  check_compiled_multisig_byte_certificate_streaming_without_cmr")
-    );
-    assert!(coq_module.contains("Definition compiled_multisig_streaming_checked_program"));
-    assert!(coq_module.contains("  check_compiled_multisig_byte_certificate_streaming"));
-    assert!(!coq_module.contains("compiled_multisig_streaming_typed_checked_program"));
-    assert!(coq_module.contains("Definition compiled_multisig_streaming_raw_program :="));
-    assert!(coq_module.contains("  decode_program_bytes_streaming"));
-    assert!(coq_module.contains("Example compiled_multisig_streaming_raw_program_is_some :"));
-    assert!(coq_module.contains("  lazy."));
-    assert!(coq_module.contains("Definition compiled_multisig_streaming_structural_program :="));
-    assert!(coq_module.contains("  decode_structural_program_bytes_streaming"));
-    assert!(
-        coq_module.contains("Example compiled_multisig_streaming_structural_program_is_some :")
-    );
-    assert!(coq_module.contains("Theorem compiled_multisig_streaming_structural_program_exists :"));
-    assert!(coq_module.contains("Example compiled_multisig_streaming_decoded_program_is_some :"));
-    assert!(coq_module.contains("Theorem compiled_multisig_streaming_decode_evidence :"));
-    assert!(coq_module.contains("    CompiledMultisigByteCertificateStreamingDecodeEvidence"));
-    assert!(coq_module.contains("Theorem compiled_multisig_streaming_source_static_fields :"));
-    assert!(coq_module.contains("Theorem compiled_multisig_certificate_source_static_fields :"));
-    assert!(
-        coq_module.contains("Theorem compiled_multisig_streaming_bridge_evidence_if_checked_cmr :")
-    );
-    assert!(coq_module.contains("    CompiledMultisigByteCertificateStreamingBridgeEvidence"));
-    assert!(coq_module.contains("Theorem compiled_multisig_decode_evidence_if_some :"));
-    assert!(coq_module.contains("    CompiledMultisigByteCertificateDecodeEvidence"));
 
     for participant in builder.parameters.participants() {
         assert!(coq_module.contains(&coq_byte_list(participant.serialize())));
     }
 
-    Ok(())
-}
-
-#[test]
-fn compiled_certificate_exports_typed_coq_module() -> anyhow::Result<()> {
-    let builder = MultisigBuilder::new(2, test_participants()?)?;
-    let certificate = builder.compiled_certificate()?;
-    let coq_module = certificate.coq_typed_certificate_module();
-
-    assert!(coq_module.contains(
-        "From MultisigFormal Require Import\n  BridgeTypeTranslation CmrWellFormed SimplicityByteDecoder TypedBridge\n  MultisigCertificate MultisigTypedCertificate MultisigSourceBlocks."
-    ));
-    assert!(coq_module.contains(
-        "Definition compiled_multisig_compact_typed_certificate : CompactCompiledMultisigTypedByteCertificate := {|"
-    ));
-    assert!(!coq_module.contains("Definition compiled_bridge_ty_0 : BridgeType :="));
-    assert!(!coq_module.contains("Definition compiled_bridge_arrow_0 : BridgeArrow :="));
-    assert!(coq_module.contains("  compact_bridge_type_defs := ["));
-    assert!(coq_module.contains("    CBTDUnit"));
-    assert!(coq_module.contains("    CBTDProd "));
-    assert!(coq_module.contains("  compact_bridge_arrow_defs := ["));
-    assert!(coq_module.contains("    (0, 0)"));
-    assert!(coq_module.contains("  compact_type_table_entries := ["));
-    assert!(coq_module.contains("    Some "));
-    let table_start = coq_module
-        .find("  compact_type_table_entries := [")
-        .expect("compact type table entries marker should exist");
-    let table_after_start = &coq_module[table_start..];
-    let table_end = table_after_start
-        .find("  ];")
-        .expect("compact type table entries terminator should exist");
-    let table_body = &table_after_start[..table_end];
-    assert_eq!(
-        table_body.matches("    Some ").count(),
-        certificate
-            .type_table
-            .iter()
-            .filter(|entry| entry.is_some())
-            .count()
-    );
-    assert_eq!(
-        table_body.matches("    None").count(),
-        certificate
-            .type_table
-            .iter()
-            .filter(|entry| entry.is_none())
-            .count()
-    );
-    assert!(coq_module.contains("  compact_root_arrow_index := "));
-    assert!(coq_module.contains(
-        "Definition compiled_multisig_typed_certificate : option CompiledMultisigTypedByteCertificate :="
-    ));
-    assert!(coq_module.contains(
-        "  expand_compact_typed_certificate compiled_multisig_compact_typed_certificate."
-    ));
-    assert!(coq_module.contains("Example compiled_multisig_compact_type_defs_atom_free :"));
-    assert!(coq_module.contains("Theorem compiled_multisig_typed_certificate_atom_free :"));
-    assert!(
-        coq_module.contains(
-            "Theorem compiled_multisig_typed_certificate_translates_to_core_type_algebra :"
-        )
-    );
-    assert!(coq_module.contains("Definition compiled_multisig_streaming_typed_checked_program"));
-    assert!(coq_module.contains("Definition compiled_multisig_streaming_typed_decoded_program"));
-    assert!(
-        coq_module.contains("Example compiled_multisig_streaming_typed_decoded_program_is_some :")
-    );
-    assert!(coq_module.contains("Definition compiled_multisig_type_check_for_program"));
-    assert!(coq_module.contains(
-        "  check_compiled_multisig_compact_typed_byte_certificate_streaming_without_cmr"
-    ));
-    assert!(coq_module.contains("Theorem compiled_multisig_streaming_typed_decode_evidence :"));
-    assert!(
-        coq_module
-            .contains("Theorem compiled_multisig_streaming_typed_decode_evidence_if_checked :")
-    );
-    assert!(
-        coq_module
-            .contains("    CompactTypedCompiledMultisigByteCertificateStreamingDecodeEvidence")
-    );
-    assert!(coq_module.contains(
-        "Theorem compiled_multisig_streaming_typed_bridge_evidence_from_cmr_if_checked :"
-    ));
-    assert!(coq_module.contains(
-        "Theorem compiled_multisig_streaming_typed_decode_evidence_from_byte_evidence_if_type_checked :"
-    ));
-    assert!(coq_module.contains("    CompiledMultisigByteCertificateStreamingDecodeEvidence"));
-    assert!(coq_module.contains("    compiled_multisig_type_check_for_program program = true ->"));
-    assert!(
-        coq_module.contains("  check_compiled_multisig_compact_typed_byte_certificate_streaming")
-    );
-    assert!(
-        coq_module
-            .contains("Theorem compiled_multisig_streaming_typed_bridge_evidence_if_checked :")
-    );
-    assert!(
-        coq_module
-            .contains("    CompactTypedCompiledMultisigByteCertificateStreamingBridgeEvidence")
-    );
+    // Data only: proofs are hand-maintained in formal/, never regenerated.
+    assert!(!coq_module.contains("Theorem "));
+    assert!(!coq_module.contains("Example "));
+    assert!(!coq_module.contains("Proof."));
 
     Ok(())
 }
@@ -270,10 +137,12 @@ fn compiled_certificate_exports_split_typed_coq_modules() -> anyhow::Result<()> 
         .map(|module| module.filename.as_str())
         .collect::<Vec<_>>();
 
-    assert_eq!(module_names.first(), Some(&"CompiledMultisigExample.v"));
+    assert_eq!(module_names.first(), Some(&"CompiledMultisigByteData.v"));
     assert!(module_names.contains(&"CompiledMultisigTypedExampleTypeDefs.v"));
-    assert!(module_names.contains(&"CompiledMultisigTypedExampleData.v"));
-    assert_eq!(module_names.last(), Some(&"CompiledMultisigTypedExample.v"));
+    assert_eq!(
+        module_names.last(),
+        Some(&"CompiledMultisigTypedExampleData.v")
+    );
     assert!(
         module_names
             .iter()
@@ -291,12 +160,34 @@ fn compiled_certificate_exports_split_typed_coq_modules() -> anyhow::Result<()> 
             "{} is too large",
             module.filename
         );
+        // Data only: no proof text is ever generated.
+        assert!(
+            !module.contents.contains("Theorem ")
+                && !module.contents.contains("Example ")
+                && !module.contents.contains("Proof."),
+            "{} contains proof text",
+            module.filename
+        );
     }
 
-    let byte_module = module_contents(&modules, "CompiledMultisigExample.v");
-    assert!(byte_module.contains("Theorem compiled_multisig_certificate_source_static_fields :"));
+    let byte_module = module_contents(&modules, "CompiledMultisigByteData.v");
+    assert!(byte_module.contains(
+        "Definition compiled_multisig_certificate : CompiledMultisigByteCertificate := {|"
+    ));
+
+    let type_defs = module_contents(&modules, "CompiledMultisigTypedExampleTypeDefs.v");
+    assert!(type_defs.contains(
+        "Definition compiled_multisig_compact_bridge_type_defs : list CompactBridgeTypeDef := ["
+    ));
+    assert!(type_defs.contains("  CBTDUnit"));
 
     let data_module = module_contents(&modules, "CompiledMultisigTypedExampleData.v");
+    assert!(data_module.contains(
+        "From MultisigFormal Require Import\n  CompiledMultisigByteData MultisigTypedCertificate"
+    ));
+    assert!(
+        data_module.contains("compact_typed_certificate_bytes := compiled_multisig_certificate;")
+    );
     assert!(
         data_module
             .contains("compact_bridge_type_defs := compiled_multisig_compact_bridge_type_defs;")
@@ -306,19 +197,7 @@ fn compiled_certificate_exports_split_typed_coq_modules() -> anyhow::Result<()> 
             "compact_type_table_entries := compiled_multisig_compact_type_table_entries;"
         )
     );
-
-    let wrapper = module_contents(&modules, "CompiledMultisigTypedExample.v");
-    assert!(
-        wrapper.contains("From MultisigFormal Require Export CompiledMultisigTypedExampleData.")
-    );
-    assert!(
-        wrapper.contains(
-            "Theorem compiled_multisig_typed_certificate_translates_to_core_type_algebra :"
-        )
-    );
-    assert!(wrapper.contains(
-        "Theorem compiled_multisig_streaming_typed_checked_byte_bridge_evidence_if_checked :"
-    ));
+    assert!(data_module.contains("compact_root_arrow_index := "));
 
     Ok(())
 }

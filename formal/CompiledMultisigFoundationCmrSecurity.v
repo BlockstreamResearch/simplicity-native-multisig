@@ -8,8 +8,12 @@ From MultisigFormal Require Import
   MultisigTypedCertificate MultisigTypedCertificateExamples
   SimplicityByteDecoder.
 
-Set Implicit Arguments.
-Set Strict Implicit.
+(*
+  PROOF-STYLE CONSTRAINT (memory): this file must NOT enable
+  [Set Implicit Arguments]/[Set Strict Implicit] — with them on, Qed-time
+  kernel checking loses sharing on the statement types and re-runs the
+  concrete byte decoder inside the kernel (>26 GB RSS; milliseconds without).
+*)
 
 (*
   Security theorem specialized to the foundation-shaped CMR adapter.

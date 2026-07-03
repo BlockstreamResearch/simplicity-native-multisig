@@ -1,5 +1,24 @@
 # Foundation integration plan
 
+> **Status (2026-07-03).** Kept as design history; the plan is largely
+> executed, with one deliberate deviation. Steps 1-3 of the implementation
+> sequence (foundation dependency shell, shared Coq version, upstream
+> `FoundationCmrOps` instantiation) were superseded: the Coq 8.17 / Rocq 9.1
+> version wall made the upstream import a dead end, so the CMR obligation was
+> closed instead by a self-contained FIPS-proven SHA-256 and a
+> rust-simplicity-pinned CMR algebra (`Sha256Core.v`, `SimplicityCmrSha.v`,
+> `CompiledMultisigRealCmr.v`, `CompiledMultisigRealSecurity.v` — no exporter
+> or foundation trust). Steps 4-7 are done (types, providers narrowed,
+> environment record, jet specs for the static/env/hash families); steps 9-10
+> are partially done via a different route than "export a Coq AST": the
+> audited byte decoder provides the program representation, and
+> `SimplicityStructuralEval.v` + `ElementsConcreteJets.v` +
+> `CompiledMultisigExecution.v` execute the deployed bytes in Coq with proven
+> accept/reject behavior on concrete scenarios. The remaining open item is
+> step 10's universal form (symbolic evaluation ⇒ semantic premises for
+> arbitrary environments) and the crypto-jet law part of steps 7-8. Current
+> state: `README.md`; extraction plan: `GENERALIZATION.md`.
+
 This directory currently proves the multisig security property at the covenant
 model boundary. The next step is a bridge proof from the concrete Simplicity
 program and Elements environment into that model.

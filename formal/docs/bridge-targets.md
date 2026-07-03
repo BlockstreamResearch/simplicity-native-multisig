@@ -1,5 +1,17 @@
 # Bridge theorem targets and obligations
 
+> **Status (2026-07-03).** Kept as design history; most targets below are now
+> achieved and audited. The compiled program IS a Coq object: the deployed
+> bytes decode, type-check, and CMR-match byte-for-byte under a
+> self-contained FIPS-proven SHA-256 (`CompiledMultisigRealCmr.v`), the full
+> checked run is discharged and the strongest security theorems are
+> instantiated on it (`CompiledMultisigRealSecurity.v`), and the deployed
+> bytes execute inside Coq with proven accept/reject behavior on concrete
+> scenarios (`CompiledMultisigExecution.v`). The one remaining obligation
+> from this document is the universal semantic-refinement theorem: successful
+> evaluation implies the assertion/vote-execution premises for arbitrary
+> environments and witnesses. Current state: `README.md`.
+
 ## What the compiled opcodes do not give by themselves
 
 Compiled bytes prove only that a Rust compiler produced a byte encoding. They
@@ -64,10 +76,11 @@ cargo run -p simplicity-native-multisig-contracts \
   <participant3_xonly_hex>
 ```
 
-The same command accepts `json` or `coq-typed` instead of `coq`; use
-`coq-typed-split <output_dir>` to regenerate the split typed Coq module family.
-The JSON artifact is useful for external tooling. The lean Coq artifact
-defines:
+The same command accepts `json` instead of `coq`; use
+`coq-typed-split <output_dir>` to regenerate the split typed Coq module
+family. The JSON artifact is useful for external tooling. The exporter emits
+data only (never proof text); the `coq` format prints the byte-certificate
+data module (`CompiledMultisigByteData.v`), which in the formal tree defines:
 
 ```coq
 compiled_multisig_certificate : CompiledMultisigByteCertificate

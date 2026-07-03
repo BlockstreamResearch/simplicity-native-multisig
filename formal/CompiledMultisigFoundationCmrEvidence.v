@@ -2,9 +2,6 @@ From MultisigFormal Require Import
   CompiledMultisigByteData CompiledMultisigTypedExample FoundationCmrAlgebra
   MultisigCertificate MultisigTypedCertificateExamples SimplicityByteDecoder.
 
-Set Implicit Arguments.
-Set Strict Implicit.
-
 (*
   Byte-level projections specialized to the foundation-shaped CMR adapter.
 
@@ -12,22 +9,38 @@ Set Strict Implicit.
   model-security composition.  Once FoundationCmrOps is instantiated from the
   upstream Simplicity Digest/MerkleRoot implementation, these are the direct
   byte-decoder facts supplied by a successful checked run.
+
+  PROOF-STYLE CONSTRAINT (memory): this file must NOT enable
+  [Set Implicit Arguments]/[Set Strict Implicit], must state the shared decode
+  fact as an opaque [Lemma] (not a transparent [Definition]), and must
+  materialize applied lemmas with [pose proof ... as H] before [exact H].
+  With the implicit-argument flags on, Qed-time kernel checking of these
+  one-line proofs loses sharing on the statement types, unfolds
+  [decode_structural_program_bytes_streaming] on the concrete certificate
+  bytes, and re-runs the whole byte decoder inside the kernel: >26 GB RSS and
+  ~30 GB of swap PER THEOREM (the single dominant memory cost of the build,
+  and the trigger of the historical 250 GB parallel-build crash).  With the
+  flags off the same proofs check in milliseconds at ~26 MB.
 *)
 
-Local Definition compiled_multisig_foundation_cmr_checked_decode
-    ops program
-    (Hchecked :
-      compiled_multisig_streaming_typed_checked_program
-        (foundation_elements_cmr_algebra ops)
-        reject_unhandled_type_hooks = Some program) :
+Local Lemma compiled_multisig_foundation_cmr_checked_decode :
+  forall ops program,
+    compiled_multisig_streaming_typed_checked_program
+      (foundation_elements_cmr_algebra ops)
+      reject_unhandled_type_hooks = Some program ->
     decode_structural_program_bytes_streaming
       (cert_program_bytes compiled_multisig_certificate) =
-      Some program :=
-  @compiled_multisig_streaming_typed_checked_decoded_program
-    (foundation_elements_cmr_algebra ops)
-    reject_unhandled_type_hooks
-    program
-    Hchecked.
+      Some program.
+Proof.
+  intros ops program Hchecked.
+  pose proof
+    (@compiled_multisig_streaming_typed_checked_decoded_program
+      (foundation_elements_cmr_algebra ops)
+      reject_unhandled_type_hooks
+      program
+      Hchecked) as Hdecoded.
+  exact Hdecoded.
+Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_decoded_program :
   forall ops program,
@@ -39,11 +52,12 @@ Theorem compiled_multisig_foundation_cmr_checked_decoded_program :
       Some program.
 Proof.
   intros ops program Hchecked.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
       ops
       program
-      Hchecked).
+      Hchecked) as Hdecoded.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_cmr :
@@ -57,12 +71,13 @@ Theorem compiled_multisig_foundation_cmr_checked_cmr :
       Some (certificate_cmr_bits compiled_multisig_certificate).
 Proof.
   intros ops program Hchecked.
-  exact
+  pose proof
     (@compiled_multisig_streaming_typed_checked_cmr
       (foundation_elements_cmr_algebra ops)
       reject_unhandled_type_hooks
       program
-      Hchecked).
+      Hchecked) as Hcmr.
+  exact Hcmr.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_hidden_cmrs_unique :
@@ -73,10 +88,11 @@ Theorem compiled_multisig_foundation_cmr_checked_hidden_cmrs_unique :
     structural_program_hidden_cmrs_unique program.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_hidden_cmrs_unique.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_hidden_cmrs_unique.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_hidden_cmrs_256 :
@@ -87,10 +103,11 @@ Theorem compiled_multisig_foundation_cmr_checked_hidden_cmrs_256 :
     structural_program_hidden_cmrs_256 program.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_hidden_cmrs_256.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_hidden_cmrs_256.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_multisig_jet_subset :
@@ -112,10 +129,11 @@ Theorem compiled_multisig_foundation_cmr_checked_dag_well_formed :
     structural_program_dag_well_formed program = true.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_dag_well_formed.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_dag_well_formed.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_dag_len_bound :
@@ -126,10 +144,11 @@ Theorem compiled_multisig_foundation_cmr_checked_dag_len_bound :
     length (structural_nodes program) <= dag_len_max.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_dag_len_bound.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_dag_len_bound.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_child_references :
@@ -140,10 +159,11 @@ Theorem compiled_multisig_foundation_cmr_checked_child_references :
     structural_program_child_references_are_backward_nodes program.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_child_references.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_child_references.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_no_fail :
@@ -154,10 +174,11 @@ Theorem compiled_multisig_foundation_cmr_checked_no_fail :
     structural_program_no_fail program = true.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_no_fail.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_no_fail.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_no_disconnect1 :
@@ -168,10 +189,11 @@ Theorem compiled_multisig_foundation_cmr_checked_no_disconnect1 :
     structural_program_no_disconnect1 program = true.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_no_disconnect1.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_no_disconnect1.
+  exact Hdecoded.
 Qed.
 
 Theorem compiled_multisig_foundation_cmr_checked_closed_padding :
@@ -183,8 +205,9 @@ Theorem compiled_multisig_foundation_cmr_checked_closed_padding :
       (cert_program_bytes compiled_multisig_certificate) = true.
 Proof.
   intros ops program Hchecked.
-  eapply decode_structural_program_bytes_streaming_closed_padding.
-  exact
+  pose proof
     (@compiled_multisig_foundation_cmr_checked_decode
-      ops program Hchecked).
+      ops program Hchecked) as Hdecoded.
+  eapply decode_structural_program_bytes_streaming_closed_padding.
+  exact Hdecoded.
 Qed.

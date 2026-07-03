@@ -7,8 +7,16 @@ From MultisigFormal Require Import
   FoundationElementsProviders MultisigCertificate MultisigSecurity
   MultisigTypedCertificate SimplicityByteDecoder.
 
-Set Implicit Arguments.
-Set Strict Implicit.
+(*
+  PROOF-STYLE CONSTRAINT (memory): this file must NOT enable
+  [Set Implicit Arguments]/[Set Strict Implicit].  With those flags on,
+  Qed-time kernel checking of the composition theorems below loses sharing on
+  the statement types and re-runs the concrete byte decoder / certificate
+  expansion inside the kernel (observed: >26 GB RSS on the first Qed; with the
+  flags off the same proofs check in milliseconds).  All applications of these
+  theorems use explicit [@] application or [eapply], so implicit-argument
+  statuses are not relied upon.
+*)
 
 (*
   Artifact security lemmas for the compiled multisig foundation bridge.

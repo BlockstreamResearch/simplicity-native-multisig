@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Write as _, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use super::CompiledMultisigCertificate;
 use simplicityhl::simplicity::types::arrow::FinalArrow;
@@ -104,60 +104,4 @@ pub(super) fn coq_type_artifact(certificate: &CompiledMultisigCertificate) -> Co
             .collect(),
         root_arrow,
     }
-}
-
-pub(super) fn write_coq_type_artifact(
-    module: &mut String,
-    certificate: &CompiledMultisigCertificate,
-) {
-    let artifact = coq_type_artifact(certificate);
-
-    writeln!(
-        module,
-        "Definition compiled_multisig_compact_typed_certificate : CompactCompiledMultisigTypedByteCertificate := {{|"
-    )
-    .expect("writing to a String cannot fail");
-    writeln!(
-        module,
-        "  compact_typed_certificate_bytes := compiled_multisig_certificate;"
-    )
-    .expect("writing to a String cannot fail");
-    writeln!(module, "  compact_bridge_type_defs := [").expect("writing to a String cannot fail");
-    for (index, definition) in artifact.type_definitions.iter().enumerate() {
-        let terminator = if index + 1 == artifact.type_definitions.len() {
-            ""
-        } else {
-            ";"
-        };
-        writeln!(module, "    {definition}{terminator}").expect("writing to a String cannot fail");
-    }
-    writeln!(module, "  ];").expect("writing to a String cannot fail");
-    writeln!(module, "  compact_bridge_arrow_defs := [").expect("writing to a String cannot fail");
-    for (index, definition) in artifact.arrow_definitions.iter().enumerate() {
-        let terminator = if index + 1 == artifact.arrow_definitions.len() {
-            ""
-        } else {
-            ";"
-        };
-        writeln!(module, "    {definition}{terminator}").expect("writing to a String cannot fail");
-    }
-    writeln!(module, "  ];").expect("writing to a String cannot fail");
-    writeln!(module, "  compact_type_table_entries := [").expect("writing to a String cannot fail");
-    for (index, entry) in artifact.type_table_entries.iter().enumerate() {
-        let terminator = if index + 1 == artifact.type_table_entries.len() {
-            ""
-        } else {
-            ";"
-        };
-        writeln!(module, "    {entry}{terminator}").expect("writing to a String cannot fail");
-    }
-    writeln!(module, "  ];").expect("writing to a String cannot fail");
-    writeln!(
-        module,
-        "  compact_root_arrow_index := {}",
-        artifact.root_arrow
-    )
-    .expect("writing to a String cannot fail");
-    writeln!(module, "|}}.").expect("writing to a String cannot fail");
-    writeln!(module).expect("writing to a String cannot fail");
 }

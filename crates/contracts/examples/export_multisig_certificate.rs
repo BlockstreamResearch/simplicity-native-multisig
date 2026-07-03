@@ -41,7 +41,6 @@ fn main() -> anyhow::Result<()> {
     match format {
         "json" => println!("{}", serde_json::to_string_pretty(&certificate.artifact())?),
         "coq" => print!("{}", certificate.coq_certificate_module()),
-        "coq-typed" => print!("{}", certificate.coq_typed_certificate_module()),
         "coq-typed-split" => {
             let output_dir = Path::new(&args[2]);
             std::fs::create_dir_all(output_dir)?;
@@ -69,6 +68,6 @@ fn parse_x_only_public_key(label: &str, value: &str) -> anyhow::Result<XOnlyPubl
 
 fn usage(program_name: &str) -> String {
     format!(
-        "usage: {program_name} <json|coq|coq-typed> <threshold> <participant1_xonly_hex> <participant2_xonly_hex> <participant3_xonly_hex>\n       {program_name} coq-typed-split <output_dir> <threshold> <participant1_xonly_hex> <participant2_xonly_hex> <participant3_xonly_hex>"
+        "usage: {program_name} <json|coq> <threshold> <participant1_xonly_hex> <participant2_xonly_hex> <participant3_xonly_hex>\n       {program_name} coq-typed-split <output_dir> <threshold> <participant1_xonly_hex> <participant2_xonly_hex> <participant3_xonly_hex>"
     )
 }

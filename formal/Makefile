@@ -51,6 +51,8 @@ audit: all
 	printf "Require Import MultisigFormal.CompiledMultisigRealCmr.\nPrint Assumptions compiled_multisig_real_cmr_matches_exported.\nPrint Assumptions compiled_multisig_streaming_real_cmr_closed.\n" | $(ROCQTOP) -quiet $(COQ_FLAGS)
 	printf "Require Import MultisigFormal.SimplicityCmrAlgebraWf.\nPrint Assumptions simplicity_cmr_algebra_well_formed.\n" | $(ROCQTOP) -quiet $(COQ_FLAGS)
 	printf "Require Import MultisigFormal.CompiledMultisigRealCmrChecked.\nPrint Assumptions compiled_multisig_real_checked_cmr.\n" | $(ROCQTOP) -quiet $(COQ_FLAGS)
+	printf "Require Import MultisigFormal.CompiledMultisigRealSecurity.\nPrint Assumptions compiled_multisig_real_typed_checked_program.\nPrint Assumptions compiled_multisig_real_root_foundation_term.\nPrint Assumptions compiled_multisig_real_artifact_security_from_executed_votes.\n" | $(ROCQTOP) -quiet $(COQ_FLAGS)
+	printf "Require Import MultisigFormal.CompiledMultisigExecution.\nPrint Assumptions deployed_multisig_accepts_two_valid_votes.\nPrint Assumptions deployed_multisig_rejects_without_valid_signatures.\nPrint Assumptions deployed_multisig_rejects_below_threshold.\nPrint Assumptions deployed_multisig_rejects_uncommitted_vote.\nPrint Assumptions deployed_multisig_rejects_tampered_outputs.\nPrint Assumptions deployed_multisig_execution_behavior.\n" | $(ROCQTOP) -quiet $(COQ_FLAGS)
 	printf "Require Import MultisigFormal.ElementsJetSemanticsInhabited.\nPrint Assumptions concrete_elements_jet_semantics_spec.\nPrint Assumptions elements_jet_semantics_spec_inhabited.\n" | $(ROCQTOP) -quiet $(COQ_FLAGS)
 	$(ROCQCHK) -silent $(COQ_FLAGS) Simplicity.Ty Simplicity.Core
 	$(ROCQCHK) -silent $(COQ_FLAGS) MultisigFormal.MultisigSecurity MultisigFormal.ElementsJets MultisigFormal.ElementsJetSemantics MultisigFormal.SimplicityByteDecoder MultisigFormal.ElementsJetCmr MultisigFormal.CmrWellFormed
@@ -58,7 +60,8 @@ audit: all
 	$(ROCQCHK) -silent $(COQ_FLAGS) MultisigFormal.BridgeTypeTranslation MultisigFormal.CompiledMultisigExample
 	$(ROCQCHK) -silent $(COQ_FLAGS) MultisigFormal.CompiledMultisigTypedExample MultisigFormal.CompiledMultisigFoundationCmrEvidence
 	$(ROCQCHK) -silent $(COQ_FLAGS) MultisigFormal.FoundationCmrAlgebra MultisigFormal.FoundationTypes MultisigFormal.FoundationCore MultisigFormal.FoundationElementsProviders MultisigFormal.CompiledMultisigFoundation MultisigFormal.CompiledMultisigFoundationSecurity MultisigFormal.CompiledMultisigFoundationCmrSecurity
-	$(ROCQCHK) -silent $(COQ_FLAGS) MultisigFormal.Sha256Core MultisigFormal.SimplicityCmrSha MultisigFormal.SimplicityCmrAlgebra MultisigFormal.SimplicityCmrAlgebraWf MultisigFormal.CompiledMultisigRealCmr MultisigFormal.CompiledMultisigRealCmrChecked MultisigFormal.ElementsJetSemanticsInhabited && echo "rocqchk: OK"
+	$(ROCQCHK) -silent $(COQ_FLAGS) MultisigFormal.Sha256Core MultisigFormal.SimplicityCmrSha MultisigFormal.SimplicityCmrAlgebra MultisigFormal.SimplicityCmrAlgebraWf MultisigFormal.CompiledMultisigRealCmr MultisigFormal.CompiledMultisigRealCmrChecked MultisigFormal.CompiledMultisigRealSecurity MultisigFormal.ElementsJetSemanticsInhabited
+	$(ROCQCHK) -silent $(COQ_FLAGS) MultisigFormal.SimplicityStructuralEval MultisigFormal.ElementsConcreteJets MultisigFormal.CompiledMultisigExecution && echo "rocqchk: OK"
 
 $(COQMAKEFILE): $(COQPROJECT) $(FOUNDATION_TY_LOCAL) $(FOUNDATION_CORE_LOCAL)
 	$(COQMKFILE) -f $(COQPROJECT) -o $(COQMAKEFILE)

@@ -73,4 +73,8 @@ SimplicityCmrAlgebra.v
 SimplicityCmrAlgebraWf.v
 CompiledMultisigRealCmr.v
 CompiledMultisigRealCmrChecked.v
+CompiledMultisigRealSecurity.v
+SimplicityStructuralEval.v
+ElementsConcreteJets.v
+CompiledMultisigExecution.v
 ElementsJetSemanticsInhabited.v
