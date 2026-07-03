@@ -2,36 +2,18 @@
 
 use serde::{Deserialize, Serialize};
 
+use contracts::common::chunked_records::RecordFraming;
+
 use super::*;
 
-const ANNOUNCEMENT_MAGIC: &[u8; 8] = b"SIMPANNC";
-const ANNOUNCEMENT_VERSION_V1: u8 = 1;
-const ANNOUNCEMENT_RECORD_METADATA: u8 = 0;
-const ANNOUNCEMENT_RECORD_CHUNK: u8 = 1;
-const ANNOUNCEMENT_HEADER_LEN: usize = ANNOUNCEMENT_MAGIC.len() + 2;
-const ANNOUNCEMENT_METADATA_TOTAL_CHUNKS_OFFSET: usize = ANNOUNCEMENT_HEADER_LEN;
-const ANNOUNCEMENT_METADATA_TOTAL_LEN_OFFSET: usize = ANNOUNCEMENT_METADATA_TOTAL_CHUNKS_OFFSET + 2;
-const ANNOUNCEMENT_METADATA_CHECKSUM_OFFSET: usize = ANNOUNCEMENT_METADATA_TOTAL_LEN_OFFSET + 4;
-const ANNOUNCEMENT_METADATA_LEN: usize = ANNOUNCEMENT_METADATA_CHECKSUM_OFFSET + 32;
-const ANNOUNCEMENT_CHUNK_INDEX_OFFSET: usize = ANNOUNCEMENT_HEADER_LEN;
-const ANNOUNCEMENT_CHUNK_DATA_OFFSET: usize = ANNOUNCEMENT_CHUNK_INDEX_OFFSET + 2;
-const ANNOUNCEMENT_MAX_OP_RETURN_PAYLOAD_BYTES: usize = 75;
-const ANNOUNCEMENT_MAX_CHUNK_DATA_BYTES: usize =
-    ANNOUNCEMENT_MAX_OP_RETURN_PAYLOAD_BYTES - ANNOUNCEMENT_CHUNK_DATA_OFFSET;
+const FRAMING: RecordFraming = RecordFraming {
+    magic: b"SIMPANNC",
+    version: 1,
+    metadata_kind: 0,
+    chunk_kind: 1,
+    label: "participant announcement",
+};
 const PARTICIPANT_ANNOUNCEMENT_PREFIX_LEN: usize = 1 + 32 + 64;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct AnnouncementMetadata {
-    total_chunks: u16,
-    total_len: u32,
-    checksum: sha256::Hash,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct AnnouncementChunk {
-    index: u16,
-    data: Vec<u8>,
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,107 +30,6 @@ struct ParticipantAnnouncement {
     x_only_public_key: String,
     participant_descriptor: String,
     signature_hex: String,
-}
-
-struct AnnouncementPayload(Vec<u8>);
-
-impl TryFrom<&Transaction> for AnnouncementPayload {
-    type Error = anyhow::Error;
-
-    fn try_from(tx: &Transaction) -> Result<Self, Self::Error> {
-        let mut metadata = None;
-        let mut chunks = Vec::new();
-        for output in &tx.output {
-            let Some((payload, has_extra_pushes)) = op_return_payload(&output.script_pubkey) else {
-                continue;
-            };
-            if payload.len() < ANNOUNCEMENT_HEADER_LEN
-                || &payload[..ANNOUNCEMENT_MAGIC.len()] != ANNOUNCEMENT_MAGIC
-            {
-                continue;
-            }
-            if has_extra_pushes {
-                anyhow::bail!("participant announcement OP_RETURN output contains extra pushes");
-            }
-            if payload[ANNOUNCEMENT_MAGIC.len()] != ANNOUNCEMENT_VERSION_V1 {
-                anyhow::bail!("unsupported participant announcement version");
-            }
-
-            match payload[ANNOUNCEMENT_MAGIC.len() + 1] {
-                ANNOUNCEMENT_RECORD_METADATA => {
-                    if payload.len() != ANNOUNCEMENT_METADATA_LEN {
-                        anyhow::bail!("invalid participant announcement metadata length");
-                    }
-                    let next_metadata = AnnouncementMetadata {
-                        total_chunks: u16::from_be_bytes(
-                            payload[ANNOUNCEMENT_METADATA_TOTAL_CHUNKS_OFFSET
-                                ..ANNOUNCEMENT_METADATA_TOTAL_CHUNKS_OFFSET + 2]
-                                .try_into()?,
-                        ),
-                        total_len: u32::from_be_bytes(
-                            payload[ANNOUNCEMENT_METADATA_TOTAL_LEN_OFFSET
-                                ..ANNOUNCEMENT_METADATA_TOTAL_LEN_OFFSET + 4]
-                                .try_into()?,
-                        ),
-                        checksum: sha256::Hash::from_byte_array(
-                            payload[ANNOUNCEMENT_METADATA_CHECKSUM_OFFSET
-                                ..ANNOUNCEMENT_METADATA_CHECKSUM_OFFSET + 32]
-                                .try_into()?,
-                        ),
-                    };
-                    if metadata.replace(next_metadata).is_some() {
-                        anyhow::bail!("duplicate participant announcement metadata record");
-                    }
-                }
-                ANNOUNCEMENT_RECORD_CHUNK => {
-                    if payload.len() < ANNOUNCEMENT_CHUNK_DATA_OFFSET {
-                        anyhow::bail!("invalid participant announcement chunk length");
-                    }
-                    chunks.push(AnnouncementChunk {
-                        index: u16::from_be_bytes(
-                            payload[ANNOUNCEMENT_CHUNK_INDEX_OFFSET
-                                ..ANNOUNCEMENT_CHUNK_INDEX_OFFSET + 2]
-                                .try_into()?,
-                        ),
-                        data: payload[ANNOUNCEMENT_CHUNK_DATA_OFFSET..].to_vec(),
-                    });
-                }
-                _ => anyhow::bail!("unsupported participant announcement record type"),
-            }
-        }
-
-        let metadata =
-            metadata.ok_or_else(|| anyhow::anyhow!("missing participant announcement metadata"))?;
-        if metadata.total_chunks == 0 {
-            anyhow::bail!("participant announcement chunk count can not be zero");
-        }
-
-        let mut ordered = vec![None; usize::from(metadata.total_chunks)];
-        for chunk in chunks {
-            let index = usize::from(chunk.index);
-            if index >= ordered.len() {
-                anyhow::bail!("participant announcement chunk index is out of bounds");
-            }
-            if ordered[index].replace(chunk.data).is_some() {
-                anyhow::bail!("duplicate participant announcement chunk");
-            }
-        }
-
-        let mut data = Vec::with_capacity(usize::try_from(metadata.total_len)?);
-        for (index, chunk) in ordered.into_iter().enumerate() {
-            let chunk = chunk
-                .ok_or_else(|| anyhow::anyhow!("missing participant announcement chunk {index}"))?;
-            data.extend_from_slice(&chunk);
-        }
-        if data.len() != usize::try_from(metadata.total_len)? {
-            anyhow::bail!("participant announcement length mismatch");
-        }
-        if sha256::Hash::hash(&data) != metadata.checksum {
-            anyhow::bail!("participant announcement checksum mismatch");
-        }
-
-        Ok(Self(data))
-    }
 }
 
 /// Append authenticated participant descriptor announcement `OP_RETURN` outputs.
@@ -200,36 +81,15 @@ pub fn append_participant_announcement_outputs(
         participant_descriptor,
     )?;
     let signature = SECP256K1.sign_schnorr(&message, &keypair);
-    let mut data = Vec::with_capacity(1 + 32 + 64 + participant_descriptor.len());
+    let mut data =
+        Vec::with_capacity(PARTICIPANT_ANNOUNCEMENT_PREFIX_LEN + participant_descriptor.len());
     data.push(u8::try_from(participant_index)?);
     data.extend_from_slice(&x_only_public_key_bytes);
     data.extend_from_slice(&signature.serialize());
     data.extend_from_slice(participant_descriptor.as_bytes());
 
-    let total_chunks = data.len().div_ceil(ANNOUNCEMENT_MAX_CHUNK_DATA_BYTES);
-    let total_chunks = u16::try_from(total_chunks)?;
-    if total_chunks == 0 {
-        anyhow::bail!("participant announcement payload can not be empty");
-    }
-
-    let checksum = sha256::Hash::hash(&data);
-    let mut metadata = Vec::with_capacity(ANNOUNCEMENT_METADATA_LEN);
-    metadata.extend_from_slice(ANNOUNCEMENT_MAGIC);
-    metadata.push(ANNOUNCEMENT_VERSION_V1);
-    metadata.push(ANNOUNCEMENT_RECORD_METADATA);
-    metadata.extend_from_slice(&total_chunks.to_be_bytes());
-    metadata.extend_from_slice(&u32::try_from(data.len())?.to_be_bytes());
-    metadata.extend_from_slice(&checksum.to_byte_array());
-    announcement_pst.add_output(announcement_output(&metadata, carrier_asset));
-
-    for (index, chunk) in data.chunks(ANNOUNCEMENT_MAX_CHUNK_DATA_BYTES).enumerate() {
-        let mut payload = Vec::with_capacity(ANNOUNCEMENT_CHUNK_DATA_OFFSET + chunk.len());
-        payload.extend_from_slice(ANNOUNCEMENT_MAGIC);
-        payload.push(ANNOUNCEMENT_VERSION_V1);
-        payload.push(ANNOUNCEMENT_RECORD_CHUNK);
-        payload.extend_from_slice(&u16::try_from(index)?.to_be_bytes());
-        payload.extend_from_slice(chunk);
-        announcement_pst.add_output(announcement_output(&payload, carrier_asset));
+    for record in FRAMING.encode_payload(&data)? {
+        announcement_pst.add_output(RecordFraming::record_output(&record, carrier_asset));
     }
 
     to_json(&ParticipantAnnouncementAppendResult {
@@ -256,7 +116,9 @@ pub fn decode_participant_announcement_transaction(
         anyhow::bail!("participant announcement transaction does not fund the multisig");
     }
 
-    let AnnouncementPayload(data) = AnnouncementPayload::try_from(&tx)?;
+    let data = FRAMING.decode_transaction(&tx, |_, _| {
+        anyhow::bail!("unsupported participant announcement record type")
+    })?;
 
     if data.len() <= PARTICIPANT_ANNOUNCEMENT_PREFIX_LEN {
         anyhow::bail!("participant announcement payload is truncated");
@@ -370,11 +232,6 @@ fn participant_announcement_message(
     let hash = sha256::Hash::hash(&bytes);
 
     Ok(Message::from_digest(hash.to_byte_array()))
-}
-
-fn announcement_output(payload: &[u8], carrier_asset: AssetId) -> Output {
-    debug_assert!(payload.len() <= ANNOUNCEMENT_MAX_OP_RETURN_PAYLOAD_BYTES);
-    Output::new_explicit(Script::new_op_return(payload), 0, carrier_asset, None)
 }
 
 fn validate_public_participant_descriptor(participant_descriptor: &str) -> anyhow::Result<()> {

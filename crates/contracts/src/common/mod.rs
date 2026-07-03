@@ -1,3 +1,4 @@
+pub mod chunked_records;
 pub(crate) mod constants;
 pub(crate) mod scripts;
 mod utxo;

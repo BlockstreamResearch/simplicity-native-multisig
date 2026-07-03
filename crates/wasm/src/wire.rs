@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use contracts::common::{Utxo, op_return_payload};
+use contracts::common::Utxo;
 use contracts::multisig::{MultisigBuilder, PARTICIPANT_COUNT};
 use contracts::sdk::{
     VoteInput, create_proposed_multisig_spend, create_vote, finalize_multisig_spend,
