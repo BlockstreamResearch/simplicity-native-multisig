@@ -1,8 +1,7 @@
-import { emptyAnnouncementScan, emptyScan, outputId } from "./app-helpers";
+import { emptyAnnouncementScan, emptyScan, randomId } from "./app-helpers";
 import type { AppActionContext } from "./app-action-context";
 import type { ToastMessage } from "./app-model";
 import type { MultisigDescriptor } from "./types";
-import { clearProposalState } from "./app-state-reset";
 
 export function showToast(
   ctx: AppActionContext,
@@ -11,7 +10,7 @@ export function showToast(
   message: string,
 ) {
   ctx.setToast({
-    id: outputId(),
+    id: randomId(),
     tone,
     title,
     message,
@@ -35,6 +34,18 @@ export async function run<T>(
     ctx.setActivity("Needs attention");
     return undefined;
   }
+}
+
+export function clearVoteState(ctx: Pick<AppActionContext, "setFinalSpend" | "setVote">) {
+  ctx.setVote(undefined);
+  ctx.setFinalSpend(undefined);
+}
+
+export function clearProposalState(
+  ctx: Pick<AppActionContext, "setFinalSpend" | "setProposal" | "setVote">,
+) {
+  ctx.setProposal(undefined);
+  clearVoteState(ctx);
 }
 
 export function applyLoadedDescriptor(ctx: AppActionContext, next: MultisigDescriptor) {

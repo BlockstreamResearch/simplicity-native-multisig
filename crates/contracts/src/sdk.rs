@@ -29,7 +29,6 @@ pub struct VotePlan {
     vote_builder: VoteBuilder,
     message: Message,
     message_hash: sha256::Hash,
-    multisig_input_count: u32,
 }
 
 impl VotePlan {
@@ -43,12 +42,6 @@ impl VotePlan {
     #[must_use]
     pub const fn message_hash(&self) -> sha256::Hash {
         self.message_hash
-    }
-
-    /// Number of multisig inputs in the signed transaction prefix.
-    #[must_use]
-    pub const fn multisig_input_count(&self) -> u32 {
-        self.multisig_input_count
     }
 
     /// Sign this vote plan with a participant key.
@@ -101,13 +94,6 @@ pub struct VoteInput {
     pub utxo: Utxo,
 }
 
-impl VoteInput {
-    #[must_use]
-    pub const fn new(vote: SignedVote, utxo: Utxo) -> Self {
-        Self { vote, utxo }
-    }
-}
-
 /// Prepare the canonical participant vote message for a proposed transaction.
 pub fn create_vote(
     multisig_builder: &MultisigBuilder,
@@ -126,7 +112,6 @@ pub fn create_vote(
         vote_builder,
         message: Message::from_digest(*message_hash.as_byte_array()),
         message_hash,
-        multisig_input_count,
     })
 }
 
@@ -240,7 +225,8 @@ pub fn finalize_prepared_multisig_spend(
         anyhow::bail!("at least one multisig input is required");
     }
 
-    let multisig_script = multisig_builder.script_pubkey()?;
+    let compiled_multisig = multisig_builder.compiled()?;
+    let multisig_script = compiled_multisig.script_pubkey();
     for (index, utxo) in input_utxos.iter().take(multisig_input_count).enumerate() {
         if utxo.txout.script_pubkey != multisig_script {
             anyhow::bail!("input UTXO {index} is not locked to the multisig script");
@@ -271,21 +257,19 @@ pub fn finalize_prepared_multisig_spend(
     }
 
     let final_tx = final_pst.extract_tx()?;
-    let multisig_program = multisig_builder.compile()?;
-    let multisig_cmr = multisig_builder.cmr()?;
-    let multisig_control_block = multisig_builder.control_block()?;
+    let multisig_control_block = compiled_multisig.control_block()?;
 
     for input_index in 0..multisig_input_count {
         let env = elements_env(
             &final_tx,
             input_utxos,
             input_index,
-            multisig_cmr,
+            compiled_multisig.cmr(),
             multisig_control_block.clone(),
             genesis_hash,
         )?;
         let witness = final_script_witness(
-            &multisig_program,
+            compiled_multisig.program(),
             witness_values(&vote_entries, total_proposed_outputs),
             &env,
             &multisig_control_block,
@@ -294,21 +278,22 @@ pub fn finalize_prepared_multisig_spend(
     }
 
     for (input_index, vote_input) in appended_votes {
-        let program = vote_input.vote.vote_builder.compile()?;
-        let control_block = vote_input
-            .vote
-            .vote_builder
-            .control_block(vote_input.vote.signature)?;
+        let compiled_vote = vote_input.vote.vote_builder.compiled()?;
+        let control_block = compiled_vote.control_block(vote_input.vote.signature)?;
         let env = elements_env(
             &final_tx,
             input_utxos,
             input_index,
-            vote_input.vote.vote_builder.cmr()?,
+            compiled_vote.cmr(),
             control_block.clone(),
             genesis_hash,
         )?;
-        let witness =
-            final_script_witness(&program, WitnessValues::default(), &env, &control_block)?;
+        let witness = final_script_witness(
+            compiled_vote.program(),
+            WitnessValues::default(),
+            &env,
+            &control_block,
+        )?;
         final_pst.inputs_mut()[input_index].final_script_witness = Some(witness);
     }
 

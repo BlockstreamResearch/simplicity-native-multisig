@@ -3,6 +3,7 @@ import {
   Check,
   CircleDot,
   Droplets,
+  FileText,
   KeyRound,
   Loader2,
   Megaphone,
@@ -65,6 +66,15 @@ export function AppShell({ model }: AppShellProps) {
             </div>
           </div>
           <div className="topbar-actions">
+            <a
+              className="button-link"
+              href={`${import.meta.env.BASE_URL}paper.pdf`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <FileText size={15} />
+              Whitepaper
+            </a>
             <h2 className="address-chip">
               {currentMultisigAddress ? middle(currentMultisigAddress, 18) : "No descriptor loaded"}
             </h2>

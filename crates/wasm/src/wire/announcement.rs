@@ -20,7 +20,6 @@ const PARTICIPANT_ANNOUNCEMENT_PREFIX_LEN: usize = 1 + 32 + 64;
 struct ParticipantAnnouncementAppendResult<'a> {
     pset_base64: &'a str,
     participant_index: usize,
-    x_only_public_key: &'a str,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,7 +94,6 @@ pub fn append_participant_announcement_outputs(
     to_json(&ParticipantAnnouncementAppendResult {
         pset_base64: &announcement_pst.to_string(),
         participant_index,
-        x_only_public_key: &x_only_public_key,
     })
 }
 
@@ -138,20 +136,14 @@ pub fn decode_participant_announcement_transaction(
     let signature = Signature::from_slice(&data[33..97]).map_err(anyhow::Error::msg)?;
     let participant_descriptor = std::str::from_utf8(&data[97..])?.to_owned();
     validate_public_participant_descriptor(&participant_descriptor)?;
-    let message = participant_announcement_message(
+    verify_participant_announcement(
         &descriptor,
         &builder,
         participant_index,
-        &data[1..33],
+        &x_only_public_key,
         &participant_descriptor,
+        &signature,
     )?;
-    SECP256K1
-        .verify_schnorr(
-            &signature,
-            &message,
-            &x_only_pubkey_from_hex(&x_only_public_key)?,
-        )
-        .map_err(|_| anyhow::anyhow!("participant announcement signature is invalid"))?;
 
     let announcement = ParticipantAnnouncement {
         participant_index,
@@ -184,6 +176,14 @@ pub fn create_session_from_participant_announcements(
             anyhow::bail!("participant announcement key does not match multisig descriptor");
         }
         validate_public_participant_descriptor(&announcement.participant_descriptor)?;
+        verify_participant_announcement(
+            &descriptor,
+            &builder,
+            announcement.participant_index,
+            &announcement.x_only_public_key,
+            &announcement.participant_descriptor,
+            &signature_from_hex(&announcement.signature_hex)?,
+        )?;
 
         let slot = &mut descriptors[announcement.participant_index];
         if let Some(current) = slot {
@@ -213,6 +213,35 @@ pub fn create_session_from_participant_announcements(
         participant_descriptors,
         &builder,
     )
+}
+
+/// Verify an announcement signature against the participant key it claims.
+///
+/// Both the on-chain decoder and session assembly go through this check, so a
+/// session can never be built from announcements the participants did not sign.
+fn verify_participant_announcement(
+    descriptor: &MultisigDescriptor,
+    builder: &MultisigBuilder,
+    participant_index: usize,
+    x_only_public_key: &str,
+    participant_descriptor: &str,
+    signature: &Signature,
+) -> anyhow::Result<()> {
+    let message = participant_announcement_message(
+        descriptor,
+        builder,
+        participant_index,
+        &hex::decode(x_only_public_key)?,
+        participant_descriptor,
+    )?;
+
+    SECP256K1
+        .verify_schnorr(
+            signature,
+            &message,
+            &x_only_pubkey_from_hex(x_only_public_key)?,
+        )
+        .map_err(|_| anyhow::anyhow!("participant announcement signature is invalid"))
 }
 
 fn participant_announcement_message(

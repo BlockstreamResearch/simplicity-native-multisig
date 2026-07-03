@@ -144,5 +144,5 @@ fn fund_vote(
     let vote_script = vote.script_pubkey()?;
     let utxo = fund_script(context, &vote_script, 1_000)?;
 
-    Ok(VoteInput::new(vote, utxo))
+    Ok(VoteInput { vote, utxo })
 }

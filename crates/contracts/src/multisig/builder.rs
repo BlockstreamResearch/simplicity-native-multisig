@@ -112,8 +112,47 @@ pub use self::coq_typed::CoqModuleFile;
 
 use self::encoding::encoded_type_table;
 
+/// A multisig covenant compiled once, with its Taproot commitment data.
+///
+/// Compiling the Simplicity template is comparatively expensive, so callers
+/// that need more than one of program, CMR, script pubkey, or control block
+/// should go through [`MultisigBuilder::compiled`] instead of the per-value
+/// accessors.
+#[derive(Debug)]
+pub struct CompiledMultisig {
+    program: CompiledProgram,
+    cmr: Cmr,
+    spend_info: TaprootSpendInfo,
+}
+
+impl CompiledMultisig {
+    #[must_use]
+    pub const fn program(&self) -> &CompiledProgram {
+        &self.program
+    }
+
+    /// Commitment Merkle root of the compiled program.
+    #[must_use]
+    pub const fn cmr(&self) -> Cmr {
+        self.cmr
+    }
+
+    /// Control block for spending the executable multisig leaf.
+    pub fn control_block(&self) -> anyhow::Result<ControlBlock> {
+        self.spend_info
+            .control_block(&script_ver(self.cmr))
+            .ok_or_else(|| anyhow::anyhow!("missing multisig control block"))
+    }
+
+    /// Script pubkey that locks funds to this multisig covenant.
+    #[must_use]
+    pub fn script_pubkey(&self) -> Script {
+        Script::new_v1_p2tr_tweaked(self.spend_info.output_key())
+    }
+}
+
 impl MultisigBuilder {
-    /// Create a builder with debug symbols disabled.
+    /// Validate the threshold range and participant distinctness.
     pub fn new(
         threshold: u32,
         participants: [XOnlyPublicKey; PARTICIPANT_COUNT],
@@ -136,6 +175,24 @@ impl MultisigBuilder {
             .map_err(anyhow::Error::msg)
     }
 
+    /// Compile the covenant and derive its Taproot commitment data once.
+    pub fn compiled(&self) -> anyhow::Result<CompiledMultisig> {
+        let program = self.compile()?;
+        let cmr = program.commit().cmr();
+        let (script, version) = script_ver(cmr);
+        let spend_info = TaprootBuilder::new()
+            .add_leaf_with_ver(0, script, version)
+            .map_err(anyhow::Error::msg)?
+            .finalize(secp256k1::SECP256K1, unspendable_internal_key())
+            .map_err(anyhow::Error::msg)?;
+
+        Ok(CompiledMultisig {
+            program,
+            cmr,
+            spend_info,
+        })
+    }
+
     /// Commitment Merkle root of the compiled program.
     pub fn cmr(&self) -> anyhow::Result<Cmr> {
         Ok(self.compile()?.commit().cmr())
@@ -156,38 +213,12 @@ impl MultisigBuilder {
 
     /// Control block for spending the executable multisig leaf.
     pub fn control_block(&self) -> anyhow::Result<ControlBlock> {
-        let script_ver = script_ver(self.cmr()?);
-        self.taproot_spend_info()?
-            .control_block(&script_ver)
-            .ok_or_else(|| anyhow::anyhow!("missing multisig control block"))
+        self.compiled()?.control_block()
     }
 
     /// Script pubkey that locks funds to this multisig covenant.
-    ///
-    /// This could be used for indexing of the covenant using the following functionality from the LWK:
-    /// ```rust,ignore
-    /// let multisig_builder = MultisigBuilder::new(...);
-    /// let multisig_script = multisig_builder.script_pubkey()?;
-    /// let desc_str = format!(":{}", multisig_script.to_hex());
-    /// let wd = WolletDescriptor::from_str(&desc_str).unwrap();
-    /// ```
     pub fn script_pubkey(&self) -> anyhow::Result<Script> {
-        Ok(Script::new_v1_p2tr_tweaked(
-            self.taproot_spend_info()?.output_key(),
-        ))
-    }
-
-    /// Taproot spend information for this multisig covenant.
-    fn taproot_spend_info(&self) -> anyhow::Result<TaprootSpendInfo> {
-        let (script, version) = script_ver(self.cmr()?);
-
-        let builder = TaprootBuilder::new()
-            .add_leaf_with_ver(0, script, version)
-            .map_err(anyhow::Error::msg)?;
-
-        builder
-            .finalize(secp256k1::SECP256K1, unspendable_internal_key())
-            .map_err(anyhow::Error::msg)
+        Ok(self.compiled()?.script_pubkey())
     }
 }
 

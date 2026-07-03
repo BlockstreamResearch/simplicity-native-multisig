@@ -9,7 +9,8 @@ import {
   RefreshCcw,
   ShieldCheck,
 } from "lucide-react";
-import { amountFromInput, amountLabel } from "../app-helpers";
+import { amountFromInput } from "../app-helpers";
+import { satsAmountError } from "../lib/sats";
 import type { AppModel } from "../app-model";
 import { CodeBlock, FlowSteps, Panel } from "../components";
 import type { FlowStep } from "../components";
@@ -155,7 +156,7 @@ export function CreateView({ model }: CreateViewProps) {
             onChange={(event) => setAnnouncementStake(amountFromInput(event.target.value))}
           />
         </label>
-        {!announcementStakeValid && <p className="empty-copy">{amountLabel("Dust amount")}</p>}
+        {!announcementStakeValid && <p className="empty-copy">{satsAmountError("Dust amount")}</p>}
         <button
           className="primary full"
           onClick={publishAnnouncement}

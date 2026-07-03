@@ -4,13 +4,15 @@ import {
   emptyScan,
   finalizableVotes,
   groupSpendableProposals,
-  outputId,
+  randomId,
   utxoKey,
 } from "./app-helpers";
-import { clearProposalState } from "./app-state-reset";
+import { clearProposalState } from "./app-action-tools";
 import { createAppActions } from "./app-actions";
 import { liquidTestnetInfo } from "./lib/contracts";
 import { esploraFeeRateSatsPerVbyte } from "./lib/lwk/network";
+import { outpointsAreLive } from "./lib/outpoints";
+import { isPositiveSats } from "./lib/sats";
 import type {
   AnnouncementScanState,
   ClaimedParticipant,
@@ -39,10 +41,6 @@ export type ToastMessage = {
 
 function safeSats(value: number): number {
   return Number.isFinite(value) ? value : 0;
-}
-
-function isPositiveSafeSats(value: number): boolean {
-  return Number.isSafeInteger(value) && value > 0 && value <= Number.MAX_SAFE_INTEGER;
 }
 
 function assetTotals(items: Array<{ asset: string; value: number }>): Map<string, number> {
@@ -96,7 +94,7 @@ export function useAppModel() {
         setInfo(next);
         setOutputs([
           {
-            id: outputId(),
+            id: randomId(),
             kind: "transfer",
             address: "",
             asset: next.policyAsset,
@@ -107,7 +105,7 @@ export function useAppModel() {
       .catch((nextError: unknown) => {
         const message = nextError instanceof Error ? nextError.message : String(nextError);
         setToast({
-          id: outputId(),
+          id: randomId(),
           tone: "error",
           title: "Loading testnet constants failed",
           message,
@@ -153,7 +151,7 @@ export function useAppModel() {
   const proposedSpendValue = outputValue + safeSats(feeAmount);
   const proposalAmountErrors = [
     ...outputs.flatMap((output, index) =>
-      isPositiveSafeSats(output.value)
+      isPositiveSats(output.value)
         ? []
         : [`Output ${index + 1} amount must be a whole positive satoshi amount.`],
     ),
@@ -162,8 +160,8 @@ export function useAppModel() {
       : ["Fee must be a whole non-negative satoshi amount."]),
   ];
   const proposalAmountsValid = proposalAmountErrors.length === 0;
-  const voteStakeValid = isPositiveSafeSats(voteStake);
-  const announcementStakeValid = isPositiveSafeSats(announcementStake);
+  const voteStakeValid = isPositiveSats(voteStake);
+  const announcementStakeValid = isPositiveSats(announcementStake);
   const selectedByAsset = assetTotals(selectedUtxos);
   const outputByAsset = assetTotals(outputs);
   const requestedAssetValue = (asset: string) =>
@@ -200,14 +198,11 @@ export function useAppModel() {
         );
 
   const spendableVotes = useMemo(() => {
-    const liveMultisigOutpoints = new Set(scan.utxos.map(utxoKey));
     return scan.votes.filter(
       (voteItem) =>
         voteItem.participantIndex >= 0 &&
         voteItem.voteUtxo !== undefined &&
-        voteItem.proposalInputOutpoints.every((outpoint) =>
-          liveMultisigOutpoints.has(`${outpoint.txid}:${outpoint.vout}`),
-        ),
+        outpointsAreLive(voteItem.proposalInputOutpoints, scan.utxos),
     );
   }, [scan.utxos, scan.votes]);
   const proposalGroups = useMemo(
@@ -224,8 +219,8 @@ export function useAppModel() {
   );
   const builderVotes = proposal ? eligibleVotes : spendableVotes;
   const voteTxids = useMemo(
-    () => new Set([...scan.votes.map((item) => item.txid), ...spendableVotes.map((item) => item.txid)]),
-    [scan.votes, spendableVotes],
+    () => new Set(scan.votes.map((item) => item.txid)),
+    [scan.votes],
   );
   const visibleTransactions = useMemo(() => {
     const query = transactionQuery.trim().toLowerCase();

@@ -1,4 +1,3 @@
-import type * as Lwk from "lwk_wasm";
 import {
   appendParticipantAnnouncementOutputs,
   appendVoteCarrierOutputs,
@@ -10,21 +9,61 @@ import type {
   ProposalResult,
   SignedVoteResult,
 } from "../../types";
+import { assertPositiveSats } from "../sats";
 import { loadLwk, walletScanIndex } from "./core";
 import { esploraClient, scanDescriptor, waterfallsClient } from "./network";
 
 export const publishFundingFeeRate = 1_000;
 
-type PublishedVoteResult = {
+type PublishedCarrier = {
   txid: string;
   txHex: string;
   explorerUrl: string;
 };
 
-function assertPositiveSafeSats(value: number, label: string) {
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`${label} must be a whole positive satoshi amount.`);
-  }
+/**
+ * Fund a dust payment to `payToAddress` from `fundingDescriptor`, let
+ * `appendOutputs` attach the OP_RETURN carrier records, then sign and
+ * broadcast. Votes and participant announcements share this shape.
+ */
+async function publishCarrierTransaction(
+  info: LiquidTestnetInfo,
+  fundingDescriptor: string,
+  mnemonic: string,
+  payToAddress: string,
+  stakeSats: number,
+  appendOutputs: (unsignedPsetBase64: string) => Promise<string>,
+): Promise<PublishedCarrier> {
+  const lwk = await loadLwk();
+  const network = lwk.Network.testnet();
+  const ownerScan = await scanDescriptor(
+    lwk,
+    network,
+    await waterfallsClient(lwk, network, info),
+    fundingDescriptor,
+    info,
+    walletScanIndex,
+  );
+  const unsigned = new lwk.TxBuilder(network)
+    .feeRate(publishFundingFeeRate)
+    .addExplicitRecipient(
+      new lwk.Address(payToAddress),
+      BigInt(stakeSats),
+      lwk.AssetId.fromString(info.policyAsset),
+    )
+    .finish(ownerScan.wallet);
+  const appended = await appendOutputs(unsigned.toString());
+  const signer = new lwk.Signer(new lwk.Mnemonic(mnemonic), network);
+  const signed = signer.sign(new lwk.Pset(appended));
+  const finalized = ownerScan.wallet.finalize(signed);
+  const txHex = finalized.extractTx().toString();
+  const txid = (await esploraClient(lwk, network, info).broadcast(finalized)).toString();
+
+  return {
+    txid,
+    txHex,
+    explorerUrl: `${info.explorerTxUrlPrefix}${txid}`,
+  };
 }
 
 export async function publishVote(
@@ -33,42 +72,24 @@ export async function publishVote(
   proposal: ProposalResult,
   vote: SignedVoteResult,
   stakeSats: number,
-): Promise<PublishedVoteResult> {
-  assertPositiveSafeSats(stakeSats, "Vote amount");
-  const lwk = await loadLwk();
-  const network = lwk.Network.testnet();
-  const client = await waterfallsClient(lwk, network, info);
-  const ownerScan = await scanDescriptor(
-    lwk,
-    network,
-    client,
-    claimed.voteDescriptor,
+): Promise<PublishedCarrier> {
+  assertPositiveSats(stakeSats, "Vote amount");
+
+  return publishCarrierTransaction(
     info,
-    walletScanIndex,
+    claimed.voteDescriptor,
+    claimed.mnemonic,
+    vote.voteAddress,
+    stakeSats,
+    async (unsignedPsetBase64) =>
+      (
+        await appendVoteCarrierOutputs(
+          unsignedPsetBase64,
+          proposal.psetBase64,
+          vote.signatureHex,
+        )
+      ).psetBase64,
   );
-  const signer = new lwk.Signer(new lwk.Mnemonic(claimed.mnemonic), network);
-  const builder = new lwk.TxBuilder(network)
-    .feeRate(publishFundingFeeRate)
-    .addExplicitRecipient(
-      new lwk.Address(vote.voteAddress),
-      BigInt(stakeSats),
-      lwk.AssetId.fromString(info.policyAsset),
-    );
-  const unsignedVotePset = builder.finish(ownerScan.wallet);
-  const appended = await appendVoteCarrierOutputs(
-    unsignedVotePset.toString(),
-    proposal.psetBase64,
-    vote.signatureHex,
-  );
-  const signed = signer.sign(new lwk.Pset(appended.psetBase64));
-  const finalized = ownerScan.wallet.finalize(signed);
-  const tx = finalized.extractTx();
-  const txid = await esploraClient(lwk, network, info).broadcast(finalized);
-  return {
-    txid: txid.toString(),
-    txHex: tx.toString(),
-    explorerUrl: `${info.explorerTxUrlPrefix}${txid.toString()}`,
-  };
 }
 
 export async function publishParticipantAnnouncement(
@@ -82,43 +103,35 @@ export async function publishParticipantAnnouncement(
   participantDescriptor: string;
   explorerUrl: string;
 }> {
-  assertPositiveSafeSats(stakeSats, "Dust amount");
+  assertPositiveSats(stakeSats, "Dust amount");
   const lwk = await loadLwk();
-  const network = lwk.Network.testnet();
   const trimmed = mnemonic.trim();
-  const signer: Lwk.Signer = new lwk.Signer(new lwk.Mnemonic(trimmed), network);
-  const privateFundingDescriptor = signer.wpkhSlip77Descriptor().toString();
+  const signer = new lwk.Signer(new lwk.Mnemonic(trimmed), lwk.Network.testnet());
   const participantDescriptor = `elwpkh(${signer.keyoriginXpub(lwk.Bip.bip84())}/0/*)`;
-  const ownerScan = await scanDescriptor(
-    lwk,
-    network,
-    await waterfallsClient(lwk, network, info),
-    privateFundingDescriptor,
+
+  let participantIndex = -1;
+  const published = await publishCarrierTransaction(
     info,
-    walletScanIndex,
-  );
-  const builder = new lwk.TxBuilder(network)
-    .feeRate(publishFundingFeeRate)
-    .addExplicitRecipient(
-      new lwk.Address(multisigDescriptor.multisigAddress),
-      BigInt(stakeSats),
-      lwk.AssetId.fromString(info.policyAsset),
-    );
-  const unsigned = builder.finish(ownerScan.wallet);
-  const appended = await appendParticipantAnnouncementOutputs(
-    unsigned.toString(),
-    multisigDescriptor,
-    participantDescriptor,
+    signer.wpkhSlip77Descriptor().toString(),
     trimmed,
+    multisigDescriptor.multisigAddress,
+    stakeSats,
+    async (unsignedPsetBase64) => {
+      const appended = await appendParticipantAnnouncementOutputs(
+        unsignedPsetBase64,
+        multisigDescriptor,
+        participantDescriptor,
+        trimmed,
+      );
+      participantIndex = appended.participantIndex;
+      return appended.psetBase64;
+    },
   );
-  const signed = signer.sign(new lwk.Pset(appended.psetBase64));
-  const finalized = ownerScan.wallet.finalize(signed);
-  const txid = await esploraClient(lwk, network, info).broadcast(finalized);
 
   return {
-    txid: txid.toString(),
-    participantIndex: appended.participantIndex,
+    txid: published.txid,
+    participantIndex,
     participantDescriptor,
-    explorerUrl: `${info.explorerTxUrlPrefix}${txid.toString()}`,
+    explorerUrl: published.explorerUrl,
   };
 }

@@ -1,5 +1,4 @@
 import type {
-  CarrierAppendResult,
   DecodedVoteResult,
   FinalizedSpendResult,
   ExecutorInputSecret,
@@ -151,7 +150,7 @@ export async function appendVoteCarrierOutputs(
   votePsetBase64: string,
   proposedPsetBase64: string,
   participantSignatureHex: string,
-): Promise<CarrierAppendResult> {
+): Promise<PsetResult> {
   return callJson((contractModule) =>
     contractModule.appendVoteCarrierOutputs(
       votePsetBase64,

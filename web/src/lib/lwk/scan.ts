@@ -3,9 +3,11 @@ import {
   decodeParticipantAnnouncementTransaction,
   decodeVoteTransactionAuto,
 } from "../contracts";
+import { outpointsAreLive } from "../outpoints";
 import type {
   AnnouncementScanState,
   ClaimedParticipant,
+  DecodedVoteResult,
   LiquidTestnetInfo,
   MultisigDescriptor,
   MultisigSession,
@@ -21,34 +23,17 @@ import {
   scanDescriptor,
   scanMultisigAddress,
   waterfallsClient,
+  waterfallsScriptHistory,
 } from "./network";
 
-async function validatedScanVote(
-  session: MultisigSession,
-  info: LiquidTestnetInfo,
+export function scanVoteFromDecoded(
+  decoded: DecodedVoteResult,
   txid: string,
-  txHex: string,
-  multisigUtxos: WireUtxo[],
-): Promise<ScanVote | undefined> {
-  const decoded = await decodeVoteTransactionAuto(session, txHex);
-  const voteUtxo = decoded.voteUtxo;
-  const proposalInputsLive = decoded.proposalInputOutpoints.every((outpoint) =>
-    multisigUtxos.some((utxo) => utxo.txid === outpoint.txid && utxo.vout === outpoint.vout),
-  );
-  if (!voteUtxo || !proposalInputsLive) {
-    return undefined;
-  }
-  const outspend = await esploraJson<{ spent: boolean }>(
-    info,
-    `/tx/${voteUtxo.txid}/outspend/${voteUtxo.vout}`,
-  );
-  if (outspend.spent) {
-    return undefined;
-  }
-
+  explorerUrl: string,
+): ScanVote {
   return {
     participantIndex: decoded.participantIndex,
-    txid,
+    txid: decoded.voteUtxo?.txid ?? txid,
     messageHash: decoded.messageHash,
     signatureHex: decoded.participantSignatureHex,
     proposedPsetBase64: decoded.proposedPsetBase64,
@@ -56,9 +41,64 @@ async function validatedScanVote(
     totalProposedOutputs: decoded.totalProposedOutputs,
     proposalInputOutpoints: decoded.proposalInputOutpoints,
     voteAddress: decoded.voteAddress,
-    voteUtxo,
-    explorerUrl: `${info.explorerTxUrlPrefix}${txid}`,
+    voteUtxo: decoded.voteUtxo,
+    explorerUrl,
   };
+}
+
+// Whether a transaction carries a vote is deterministic, so decode results are
+// cached for the session lifetime; `null` marks non-carrier transactions.
+const voteDecodeCache = new Map<string, ScanVote | null>();
+
+/** Strip a `ct(...)` wrapper so the descriptor can be queried at script level. */
+function plainWatchDescriptor(voteDescriptor: string): string {
+  const confidential = voteDescriptor.match(/^ct\([^,]+,(.*)\)$/);
+  return confidential ? confidential[1] : voteDescriptor;
+}
+
+async function discoverVote(
+  session: MultisigSession,
+  info: LiquidTestnetInfo,
+  txid: string,
+): Promise<ScanVote | null> {
+  const cacheKey = `${session.multisigScriptPubkey}:${txid}`;
+  const cached = voteDecodeCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let txHex: string;
+  try {
+    txHex = await esploraTxHex(info, txid);
+  } catch {
+    // Transient fetch failure: retry on the next scan instead of caching.
+    return null;
+  }
+
+  let vote: ScanVote | null = null;
+  try {
+    const decoded = await decodeVoteTransactionAuto(session, txHex);
+    vote = scanVoteFromDecoded(decoded, txid, `${info.explorerTxUrlPrefix}${txid}`);
+  } catch {
+    // Most transactions are not vote carrier transactions.
+  }
+  voteDecodeCache.set(cacheKey, vote);
+  return vote;
+}
+
+async function voteIsLive(
+  info: LiquidTestnetInfo,
+  vote: ScanVote,
+  multisigUtxos: WireUtxo[],
+): Promise<boolean> {
+  if (!vote.voteUtxo || !outpointsAreLive(vote.proposalInputOutpoints, multisigUtxos)) {
+    return false;
+  }
+  const outspend = await esploraJson<{ spent: boolean }>(
+    info,
+    `/tx/${vote.voteUtxo.txid}/outspend/${vote.voteUtxo.vout}`,
+  );
+  return !outspend.spent;
 }
 
 export async function scanSession(
@@ -90,47 +130,44 @@ export async function scanSession(
     }),
   );
 
-  for (const { scan } of participantScans) {
-    if (!scan) {
-      continue;
-    }
-
-    for (const tx of scan.wallet.transactions()) {
-      const txid = tx.txid().toString();
-      if (votes.some((vote) => vote.txid === txid)) {
-        continue;
-      }
-      try {
-        const vote = await validatedScanVote(session, info, txid, tx.tx().toString(), multisig.utxos);
-        if (vote) {
-          votes.push(vote);
-        }
-      } catch {
-        // Most wallet transactions are not vote carrier transactions.
+  // Vote carriers are discovered at script level through the waterfalls
+  // index. An LWK wallet scan cannot be used here: carriers funded purely
+  // from confidential outputs are invisible to a watch-only wallet, which
+  // only tracks outputs it can unblind. Votes for the current multisig UTXOs
+  // cannot be older than the oldest of those UTXOs, which bounds how much
+  // history has to be decoded.
+  const candidateTxids = new Set<string>(knownVotes.map((known) => known.txid));
+  if (multisig.utxos.length > 0) {
+    const histories = await Promise.all(
+      session.participants.map((participant) =>
+        waterfallsScriptHistory(info, plainWatchDescriptor(participant.voteDescriptor)).catch(
+          (error: unknown) => {
+            console.warn(`Participant ${participant.index + 1} history scan failed:`, error);
+            return [];
+          },
+        ),
+      ),
+    );
+    for (const seen of histories.flat()) {
+      if (
+        seen.height === undefined ||
+        seen.height <= 0 ||
+        multisig.oldestUtxoHeight === undefined ||
+        seen.height >= multisig.oldestUtxoHeight
+      ) {
+        candidateTxids.add(seen.txid);
       }
     }
   }
 
-  // Wallet indexers can lag behind just-broadcast vote transactions. Keep
-  // votes that are already known locally, as long as they still validate
-  // against esplora (unspent vote UTXO, live proposal inputs).
-  for (const known of knownVotes) {
-    if (votes.some((vote) => vote.txid === known.txid)) {
-      continue;
-    }
-    try {
-      const vote = await validatedScanVote(
-        session,
-        info,
-        known.txid,
-        await esploraTxHex(info, known.txid),
-        multisig.utxos,
-      );
-      if (vote) {
-        votes.push(vote);
-      }
-    } catch {
-      // The known vote disappeared (evicted or reorged away): drop it.
+  for (const txid of candidateTxids) {
+    const vote = await discoverVote(session, info, txid);
+    if (
+      vote &&
+      !votes.some((item) => item.txid === vote.txid) &&
+      (await voteIsLive(info, vote, multisig.utxos))
+    ) {
+      votes.push(vote);
     }
   }
 

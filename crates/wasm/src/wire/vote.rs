@@ -11,11 +11,9 @@ struct SignedVoteResult<'a> {
     derivation_path: &'a str,
     x_only_public_key: &'a str,
     message_hash: &'a str,
-    multisig_input_count: u32,
     signature_hex: &'a str,
     vote_script_pubkey: &'a str,
     vote_address: &'a str,
-    carrier_outputs: Vec<OutputSummary>,
 }
 
 #[derive(Debug, Serialize)]
@@ -26,10 +24,8 @@ struct DecodedVoteResult<'a> {
     proposed_tx_hex: &'a str,
     participant_signature_hex: &'a str,
     message_hash: &'a str,
-    multisig_input_count: u32,
     total_proposed_outputs: u16,
     proposal_input_outpoints: Vec<WireOutpoint>,
-    vote_script_pubkey: &'a str,
     vote_address: &'a str,
     vote_utxo: Option<WireUtxo>,
 }
@@ -45,15 +41,6 @@ struct WireOutpoint {
 #[serde(rename_all = "camelCase")]
 struct CarrierAppendResult<'a> {
     pset_base64: &'a str,
-    output_count: usize,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct OutputSummary {
-    script_pubkey: String,
-    asset: String,
-    value: u64,
 }
 
 /// Create and sign a vote for `proposed_pset_base64` using a participant mnemonic.
@@ -76,32 +63,21 @@ pub fn create_signed_vote(
     let vote_plan = create_vote(&builder, &proposed_pst, total_proposed_outputs)?;
     let signed_vote = vote_plan.sign(&keypair);
     let vote_script_pubkey = signed_vote.script_pubkey()?;
-    let vote_address =
-        Address::from_script(&vote_script_pubkey, None, &AddressParams::LIQUID_TESTNET)
-            .ok_or_else(|| anyhow::anyhow!("vote script pubkey is not addressable"))?;
-    let carrier_outputs = onchain_encoder::encode(&proposed_pst, signed_vote.signature())?
-        .iter()
-        .map(|output| {
-            let txout = output.to_txout();
-            Ok(OutputSummary {
-                script_pubkey: script_hex(&txout.script_pubkey),
-                asset: explicit_asset_hex(txout.asset)?,
-                value: explicit_value(txout.value)?,
-            })
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
 
     to_json(&SignedVoteResult {
         participant_index,
         derivation_path: &path,
         x_only_public_key: &session.participants[participant_index].x_only_public_key,
         message_hash: &vote_plan.message_hash().to_string(),
-        multisig_input_count: vote_plan.multisig_input_count(),
         signature_hex: &hex::encode(signed_vote.signature().serialize()),
         vote_script_pubkey: &script_hex(&vote_script_pubkey),
-        vote_address: &vote_address.to_string(),
-        carrier_outputs,
+        vote_address: &vote_address(&vote_script_pubkey)?.to_string(),
     })
+}
+
+fn vote_address(vote_script_pubkey: &Script) -> anyhow::Result<Address> {
+    Address::from_script(vote_script_pubkey, None, &AddressParams::LIQUID_TESTNET)
+        .ok_or_else(|| anyhow::anyhow!("vote script pubkey is not addressable"))
 }
 
 /// Append encoded vote proposal records to an existing vote-funding PSET.
@@ -124,7 +100,6 @@ pub fn append_vote_carrier_outputs(
 
     to_json(&CarrierAppendResult {
         pset_base64: &vote_pst.to_string(),
-        output_count: vote_pst.outputs().len(),
     })
 }
 
@@ -184,9 +159,6 @@ fn decode_vote_transaction_inner(
         .ok_or_else(|| anyhow::anyhow!("vote signature does not match any session participant"))?;
     let signed_vote = vote_plan.signed_vote(decoded.participant_signature);
     let vote_script_pubkey = signed_vote.script_pubkey()?;
-    let vote_address =
-        Address::from_script(&vote_script_pubkey, None, &AddressParams::LIQUID_TESTNET)
-            .ok_or_else(|| anyhow::anyhow!("vote script pubkey is not addressable"))?;
     let vote_utxo = tx
         .output
         .iter()
@@ -219,11 +191,9 @@ fn decode_vote_transaction_inner(
         proposed_tx_hex: &proposed_tx_hex,
         participant_signature_hex: &hex::encode(decoded.participant_signature.serialize()),
         message_hash: &vote_plan.message_hash().to_string(),
-        multisig_input_count: vote_plan.multisig_input_count(),
         total_proposed_outputs,
         proposal_input_outpoints,
-        vote_script_pubkey: &script_hex(&vote_script_pubkey),
-        vote_address: &vote_address.to_string(),
+        vote_address: &vote_address(&vote_script_pubkey)?.to_string(),
         vote_utxo,
     })
 }

@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { amountFromInput, outputId } from "../app-helpers";
+import { amountFromInput, randomId } from "../app-helpers";
 import type { AppModel } from "../app-model";
 import { CodeBlock, Panel } from "../components";
 import { middle, sats } from "../lib/format";
@@ -76,7 +76,7 @@ export function ProposeSpendPanel({
             setOutputs((current) => [
               ...current,
               {
-                id: outputId(),
+                id: randomId(),
                 kind: "transfer",
                 address: "",
                 asset: info?.policyAsset ?? "",

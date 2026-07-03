@@ -1,14 +1,14 @@
-import {
-  amountLabel,
-  assetLabel,
-  emptyScan,
-  scanVoteFromDecoded,
-  utxoKey,
-} from "./app-helpers";
+import { assetLabel, emptyScan, utxoKey } from "./app-helpers";
 import type { AppActionContext } from "./app-action-context";
 import type { BusyAction } from "./app-model";
-import { applyLoadedDescriptor, run, showToast } from "./app-action-tools";
-import { clearProposalState, clearVoteState } from "./app-state-reset";
+import {
+  applyLoadedDescriptor,
+  clearProposalState,
+  clearVoteState,
+  run,
+  showToast,
+} from "./app-action-tools";
+import { satsAmountError } from "./lib/sats";
 import {
   createMultisigDescriptor,
   createProposedSpend,
@@ -28,6 +28,7 @@ import {
 import {
   discoverParticipantAnnouncements,
   scanSession,
+  scanVoteFromDecoded,
 } from "./lib/lwk/scan";
 import { finalizeAndBroadcastSpend } from "./lib/lwk/spend";
 import { esploraTxHex } from "./lib/lwk/network";
@@ -239,7 +240,7 @@ export function createAppActions(ctx: AppActionContext) {
   async function broadcastVote() {
     if (!info || !session || !claimed || !proposal || !vote) return;
     if (!voteStakeValid) {
-      showToast(ctx, "error", "Publishing vote", amountLabel("Vote amount"));
+      showToast(ctx, "error", "Publishing vote", satsAmountError("Vote amount"));
       return;
     }
     await withBusyAction("publish-vote", async () => {
@@ -279,7 +280,7 @@ export function createAppActions(ctx: AppActionContext) {
   async function publishAnnouncement() {
     if (!info || !activeMultisigDescriptor || !announcementMnemonic.trim()) return;
     if (!announcementStakeValid) {
-      showToast(ctx, "error", "Publishing participant announcement", amountLabel("Dust amount"));
+      showToast(ctx, "error", "Publishing participant announcement", satsAmountError("Dust amount"));
       return;
     }
     await withBusyAction("publish-announcement", async () => {

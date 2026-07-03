@@ -344,6 +344,11 @@ td {
   font-size: 12px;
 }
 
+.proposal-voter > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .proposal-voter strong {
   font-family: monospace;
 }

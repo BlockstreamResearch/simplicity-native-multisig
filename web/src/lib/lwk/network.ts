@@ -20,6 +20,7 @@ type EsploraUtxo = {
   vout: number;
   value?: number;
   asset?: string;
+  status?: EsploraStatus;
 };
 
 type EsploraTransaction = {
@@ -133,14 +134,21 @@ export async function scanMultisigAddress(
 ): Promise<{
   utxos: WireUtxo[];
   transactions: ScanTransaction[];
+  oldestUtxoHeight?: number;
 }> {
   const addressPath = encodeURIComponent(descriptor.multisigAddress);
   const [utxos, transactions] = await Promise.all([
     esploraJson<EsploraUtxo[]>(info, `/address/${addressPath}/utxo`),
     esploraJson<EsploraTransaction[]>(info, `/address/${addressPath}/txs`),
   ]);
+  const confirmedHeights = utxos.flatMap((utxo) =>
+    utxo.status?.confirmed && utxo.status.block_height !== undefined
+      ? [utxo.status.block_height]
+      : [],
+  );
 
   return {
+    oldestUtxoHeight: confirmedHeights.length > 0 ? Math.min(...confirmedHeights) : undefined,
     utxos: utxos.flatMap((utxo) =>
       utxo.asset === undefined || utxo.value === undefined
         ? []
@@ -211,4 +219,31 @@ export async function waterfallsClient(
   const client = new lwk.EsploraClient(network, info.defaultWaterfallsUrl, true, 4, false);
   await client.setWaterfallsServerRecipient(waterfallsServerRecipient);
   return client;
+}
+
+type WaterfallsTxSeen = {
+  txid: string;
+  height?: number;
+};
+
+/**
+ * Full script-level transaction history of a descriptor from the waterfalls
+ * service. Unlike an LWK wallet scan this needs no blinding key and also
+ * reports transactions whose wallet-facing outputs are all confidential.
+ */
+export async function waterfallsScriptHistory(
+  info: LiquidTestnetInfo,
+  descriptor: string,
+): Promise<WaterfallsTxSeen[]> {
+  const base = info.defaultWaterfallsUrl.replace(/\/$/, "");
+  const response = await fetch(
+    `${base}/v1/waterfalls?descriptor=${encodeURIComponent(descriptor)}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Waterfalls request failed with HTTP ${response.status}`);
+  }
+  const data = (await response.json()) as {
+    txs_seen: Record<string, WaterfallsTxSeen[][]>;
+  };
+  return Object.values(data.txs_seen).flat(2);
 }

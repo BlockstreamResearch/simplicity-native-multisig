@@ -1,11 +1,13 @@
+import { utxoKey } from "./lib/outpoints";
 import type {
-  DecodedVoteResult,
   AnnouncementScanState,
   FaucetAsset,
   ScanVote,
   WireUtxo,
   ScanState,
 } from "./types";
+
+export { utxoKey };
 
 type ProposalGroup = {
   messageHash: string;
@@ -32,12 +34,8 @@ export const emptyAnnouncementScan: AnnouncementScanState = {
   transactions: [],
 };
 
-export function outputId(): string {
+export function randomId(): string {
   return crypto.randomUUID();
-}
-
-export function utxoKey(utxo: WireUtxo): string {
-  return `${utxo.txid}:${utxo.vout}`;
 }
 
 export function assetLabel(asset: FaucetAsset): string {
@@ -50,30 +48,6 @@ export function amountFromInput(value: string): number {
   }
   const next = Number(value);
   return Number.isFinite(next) ? next : 0;
-}
-
-export function amountLabel(label: string): string {
-  return `${label} must be a whole positive satoshi amount.`;
-}
-
-export function scanVoteFromDecoded(
-  decoded: DecodedVoteResult,
-  txid: string,
-  explorerUrl: string,
-): ScanVote {
-  return {
-    participantIndex: decoded.participantIndex,
-    txid: decoded.voteUtxo?.txid ?? txid,
-    messageHash: decoded.messageHash,
-    signatureHex: decoded.participantSignatureHex,
-    proposedPsetBase64: decoded.proposedPsetBase64,
-    proposedTxHex: decoded.proposedTxHex,
-    totalProposedOutputs: decoded.totalProposedOutputs,
-    proposalInputOutpoints: decoded.proposalInputOutpoints,
-    voteAddress: decoded.voteAddress,
-    voteUtxo: decoded.voteUtxo,
-    explorerUrl,
-  };
 }
 
 export function groupSpendableProposals(

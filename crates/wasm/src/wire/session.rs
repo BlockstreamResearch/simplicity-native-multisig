@@ -80,18 +80,37 @@ pub fn inspect_multisig_descriptor(descriptor_json: &str) -> anyhow::Result<Stri
     )
 }
 
+/// Script pubkey, address, and LWK watch descriptor of a multisig covenant,
+/// shared by the session and descriptor wire formats.
+struct MultisigIdentity {
+    script_pubkey: String,
+    address: String,
+    /// LWK accepts a raw script pubkey watch descriptor in the form `:<script hex>`.
+    lwk_descriptor: String,
+}
+
+fn multisig_identity(builder: &MultisigBuilder) -> anyhow::Result<MultisigIdentity> {
+    let script = builder.script_pubkey()?;
+    let script_pubkey = script_hex(&script);
+    let address = Address::from_script(&script, None, &AddressParams::LIQUID_TESTNET)
+        .ok_or_else(|| anyhow::anyhow!("multisig script pubkey is not addressable"))?
+        .to_string();
+    let lwk_descriptor = format!(":{script_pubkey}");
+
+    Ok(MultisigIdentity {
+        script_pubkey,
+        address,
+        lwk_descriptor,
+    })
+}
+
 pub(super) fn session_from_parts(
     threshold: u32,
     participant_pubkeys: Vec<String>,
     participant_descriptors: Vec<String>,
     builder: &MultisigBuilder,
 ) -> anyhow::Result<String> {
-    let multisig_script = builder.script_pubkey()?;
-    let multisig_script_pubkey = script_hex(&multisig_script);
-    let multisig_address =
-        Address::from_script(&multisig_script, None, &AddressParams::LIQUID_TESTNET)
-            .ok_or_else(|| anyhow::anyhow!("multisig script pubkey is not addressable"))?
-            .to_string();
+    let identity = multisig_identity(builder)?;
     let participants = participant_pubkeys
         .into_iter()
         .zip(participant_descriptors)
@@ -110,9 +129,9 @@ pub(super) fn session_from_parts(
         network: "liquid-testnet".to_owned(),
         threshold,
         participants,
-        multisig_script_pubkey: multisig_script_pubkey.clone(),
-        multisig_address,
-        lwk_descriptor: format!(":{multisig_script_pubkey}"),
+        multisig_script_pubkey: identity.script_pubkey,
+        multisig_address: identity.address,
+        lwk_descriptor: identity.lwk_descriptor,
     })
 }
 
@@ -142,12 +161,7 @@ pub(super) fn multisig_descriptor_from_parts(
     participant_pubkeys: Vec<String>,
     builder: &MultisigBuilder,
 ) -> anyhow::Result<String> {
-    let multisig_script = builder.script_pubkey()?;
-    let multisig_script_pubkey = script_hex(&multisig_script);
-    let multisig_address =
-        Address::from_script(&multisig_script, None, &AddressParams::LIQUID_TESTNET)
-            .ok_or_else(|| anyhow::anyhow!("multisig script pubkey is not addressable"))?
-            .to_string();
+    let identity = multisig_identity(builder)?;
     let participants = participant_pubkeys
         .into_iter()
         .enumerate()
@@ -162,64 +176,74 @@ pub(super) fn multisig_descriptor_from_parts(
         network: "liquid-testnet".to_owned(),
         threshold,
         participants,
-        multisig_script_pubkey: multisig_script_pubkey.clone(),
-        multisig_address,
-        lwk_descriptor: format!(":{multisig_script_pubkey}"),
+        multisig_script_pubkey: identity.script_pubkey,
+        multisig_address: identity.address,
+        lwk_descriptor: identity.lwk_descriptor,
     })
 }
 
-pub(super) fn session_builder(session: &MultisigSession) -> anyhow::Result<MultisigBuilder> {
-    if session.version != 1 {
-        anyhow::bail!("unsupported session descriptor version");
+/// Rebuild the multisig covenant from wire fields and verify that the claimed
+/// script pubkey matches the rebuilt one.
+fn validated_builder(
+    version: u8,
+    network: &str,
+    threshold: u32,
+    participant_pubkeys: &[String],
+    claimed_script_pubkey: &str,
+    label: &str,
+) -> anyhow::Result<MultisigBuilder> {
+    if version != 1 {
+        anyhow::bail!("unsupported {label} version");
     }
-    if session.network != "liquid-testnet" {
+    if network != "liquid-testnet" {
         anyhow::bail!("only liquid-testnet is supported");
     }
-    if session.participants.len() != PARTICIPANT_COUNT {
+    if participant_pubkeys.len() != PARTICIPANT_COUNT {
         anyhow::bail!("expected {PARTICIPANT_COUNT} participants");
     }
 
+    let builder = multisig_builder(threshold, participant_pubkeys)?;
+    if script_hex(&builder.script_pubkey()?) != claimed_script_pubkey {
+        anyhow::bail!("{label} script does not match threshold and participants");
+    }
+
+    Ok(builder)
+}
+
+pub(super) fn session_builder(session: &MultisigSession) -> anyhow::Result<MultisigBuilder> {
     let participant_pubkeys = session
         .participants
         .iter()
         .map(|participant| participant.x_only_public_key.clone())
         .collect::<Vec<_>>();
-    let builder = multisig_builder(session.threshold, &participant_pubkeys)?;
-    let script_pubkey = script_hex(&builder.script_pubkey()?);
 
-    if script_pubkey != session.multisig_script_pubkey {
-        anyhow::bail!("session multisig script does not match threshold and participants");
-    }
-
-    Ok(builder)
+    validated_builder(
+        session.version,
+        &session.network,
+        session.threshold,
+        &participant_pubkeys,
+        &session.multisig_script_pubkey,
+        "session",
+    )
 }
 
 pub(super) fn descriptor_builder(
     descriptor: &MultisigDescriptor,
 ) -> anyhow::Result<MultisigBuilder> {
-    if descriptor.version != 1 {
-        anyhow::bail!("unsupported multisig descriptor version");
-    }
-    if descriptor.network != "liquid-testnet" {
-        anyhow::bail!("only liquid-testnet is supported");
-    }
-    if descriptor.participants.len() != PARTICIPANT_COUNT {
-        anyhow::bail!("expected {PARTICIPANT_COUNT} participants");
-    }
-
     let participant_pubkeys = descriptor
         .participants
         .iter()
         .map(|participant| participant.x_only_public_key.clone())
         .collect::<Vec<_>>();
-    let builder = multisig_builder(descriptor.threshold, &participant_pubkeys)?;
-    let script_pubkey = script_hex(&builder.script_pubkey()?);
 
-    if script_pubkey != descriptor.multisig_script_pubkey {
-        anyhow::bail!("multisig descriptor script does not match threshold and participants");
-    }
-
-    Ok(builder)
+    validated_builder(
+        descriptor.version,
+        &descriptor.network,
+        descriptor.threshold,
+        &participant_pubkeys,
+        &descriptor.multisig_script_pubkey,
+        "multisig descriptor",
+    )
 }
 
 pub(super) fn multisig_builder(

@@ -280,9 +280,10 @@ fn wire_vote_inputs_into_slots(
             anyhow::bail!("participant index is out of bounds");
         }
         let signature = signature_from_hex(&vote_input.signature_hex)?;
-        let signed_vote = vote_plan.signed_vote(signature);
-        let vote_utxo = wire_utxo_into_utxo(vote_input.utxo)?;
-        slots[vote_input.participant_index] = Some(VoteInput::new(signed_vote, vote_utxo));
+        slots[vote_input.participant_index] = Some(VoteInput {
+            vote: vote_plan.signed_vote(signature),
+            utxo: wire_utxo_into_utxo(vote_input.utxo)?,
+        });
     }
 
     Ok(slots)

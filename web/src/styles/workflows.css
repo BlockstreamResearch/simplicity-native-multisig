@@ -113,6 +113,11 @@
   font-size: 12px;
 }
 
+.vote-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .vote-row strong,
 .vote-detail strong {
   font-family: monospace;

@@ -1,6 +1,7 @@
 import { ExternalLink, Loader2, Radio } from "lucide-react";
 import type { ReactNode } from "react";
-import { amountFromInput, amountLabel } from "../app-helpers";
+import { amountFromInput } from "../app-helpers";
+import { satsAmountError } from "../lib/sats";
 import type { AppModel, ExecutorFundingSource, FeeRateStatus } from "../app-model";
 import { Panel } from "../components";
 import { middle } from "../lib/format";
@@ -63,7 +64,7 @@ export function VotesPanel({ icon, model }: BuilderPanelProps) {
           {isPublishingVote ? "Publishing" : "Publish"}
         </button>
       </div>
-      {!voteStakeValid && <p className="empty-copy">{amountLabel("Vote amount")}</p>}
+      {!voteStakeValid && <p className="empty-copy">{satsAmountError("Vote amount")}</p>}
       {vote ? (
         <div className="vote-detail">
           <span>Participant {vote.participantIndex + 1}</span>

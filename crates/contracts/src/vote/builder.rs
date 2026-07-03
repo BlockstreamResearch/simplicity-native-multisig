@@ -13,7 +13,7 @@ use simplicityhl::elements::bitcoin::secp256k1;
 use simplicityhl::elements::hashes::{Hash, HashEngine, sha256};
 use simplicityhl::elements::secp256k1_zkp::schnorr::Signature;
 use simplicityhl::elements::taproot::{
-    ControlBlock, LeafVersion, TapLeafHash, TaprootBuilder, TaprootSpendInfo,
+    ControlBlock, TapLeafHash, TaprootBuilder, TaprootSpendInfo,
 };
 use simplicityhl::num::U256;
 use simplicityhl::simplicity::Cmr;
@@ -37,7 +37,7 @@ impl VoteParameters {
         expected_multisig_inputs_count: u32,
     ) -> anyhow::Result<Self> {
         if expected_multisig_inputs_count == 0 {
-            anyhow::bail!("expected multisig inputs count");
+            anyhow::bail!("expected multisig inputs count must be greater than zero");
         }
 
         Ok(Self {
@@ -68,50 +68,44 @@ pub struct VoteBuilder {
     parameters: VoteParameters,
 }
 
-impl VoteBuilder {
-    /// Create a vote builder with debug symbols disabled.
-    pub fn new(
-        target_multisig_script_pubkey: Script,
-        expected_multisig_inputs_count: u32,
-    ) -> anyhow::Result<Self> {
-        Ok(Self {
-            parameters: VoteParameters::new(
-                target_multisig_script_pubkey,
-                expected_multisig_inputs_count,
-            )?,
-        })
-    }
+/// A vote covenant compiled once, with its Taproot commitment data.
+///
+/// The vote tap tree pairs the executable leaf with a hidden state leaf that
+/// commits to the participant signature, so spend info is derived per
+/// signature. Compiling the Simplicity template is comparatively expensive:
+/// callers that need more than one of program, CMR, leaf hash, script pubkey,
+/// or control block should go through [`VoteBuilder::compiled`] instead of the
+/// per-value accessors.
+#[derive(Debug)]
+pub struct CompiledVote {
+    program: CompiledProgram,
+    cmr: Cmr,
+}
 
-    /// Compile the vote covenant.
-    pub fn compile(&self) -> anyhow::Result<CompiledProgram> {
-        let template_program = TemplateProgram::new(VOTE_SOURCE).map_err(anyhow::Error::msg)?;
-
-        template_program
-            .instantiate(self.parameters.arguments(), false)
-            .map_err(anyhow::Error::msg)
+impl CompiledVote {
+    #[must_use]
+    pub const fn program(&self) -> &CompiledProgram {
+        &self.program
     }
 
     /// Commitment Merkle root of the compiled vote executable leaf.
-    pub fn cmr(&self) -> anyhow::Result<Cmr> {
-        Ok(self.compile()?.commit().cmr())
+    #[must_use]
+    pub const fn cmr(&self) -> Cmr {
+        self.cmr
     }
 
     /// Tapleaf hash of the executable vote leaf.
-    pub fn executable_leaf_hash(&self) -> anyhow::Result<TapLeafHash> {
-        let (script, version) = self.script_ver()?;
-        Ok(TapLeafHash::from_script(&script, version))
-    }
-
-    /// Executable script and leaf version used in the Taproot tree.
-    fn script_ver(&self) -> anyhow::Result<(Script, LeafVersion)> {
-        Ok(script_ver(self.cmr()?))
+    #[must_use]
+    pub fn executable_leaf_hash(&self) -> TapLeafHash {
+        let (script, version) = script_ver(self.cmr);
+        TapLeafHash::from_script(&script, version)
     }
 
     fn taproot_spend_info(
         &self,
         participant_signature: Signature,
     ) -> anyhow::Result<TaprootSpendInfo> {
-        let (script, version) = script_ver(self.cmr()?);
+        let (script, version) = script_ver(self.cmr);
         let signature_hash = sha256::Hash::hash(&participant_signature.serialize());
         let tap_data_tag = sha256::Hash::hash(b"TapData");
         let mut tap_data_engine = sha256::Hash::engine();
@@ -134,7 +128,7 @@ impl VoteBuilder {
     /// Control block for spending the executable vote leaf.
     pub fn control_block(&self, participant_signature: Signature) -> anyhow::Result<ControlBlock> {
         self.taproot_spend_info(participant_signature)?
-            .control_block(&self.script_ver()?)
+            .control_block(&script_ver(self.cmr))
             .ok_or_else(|| anyhow::anyhow!("missing vote control block"))
     }
 
@@ -143,5 +137,47 @@ impl VoteBuilder {
         Ok(Script::new_v1_p2tr_tweaked(
             self.taproot_spend_info(participant_signature)?.output_key(),
         ))
+    }
+}
+
+impl VoteBuilder {
+    /// Validate that the expected multisig input count is non-zero.
+    pub fn new(
+        target_multisig_script_pubkey: Script,
+        expected_multisig_inputs_count: u32,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            parameters: VoteParameters::new(
+                target_multisig_script_pubkey,
+                expected_multisig_inputs_count,
+            )?,
+        })
+    }
+
+    /// Compile the vote covenant.
+    pub fn compile(&self) -> anyhow::Result<CompiledProgram> {
+        let template_program = TemplateProgram::new(VOTE_SOURCE).map_err(anyhow::Error::msg)?;
+
+        template_program
+            .instantiate(self.parameters.arguments(), false)
+            .map_err(anyhow::Error::msg)
+    }
+
+    /// Compile the vote covenant and derive its commitment data once.
+    pub fn compiled(&self) -> anyhow::Result<CompiledVote> {
+        let program = self.compile()?;
+        let cmr = program.commit().cmr();
+
+        Ok(CompiledVote { program, cmr })
+    }
+
+    /// Tapleaf hash of the executable vote leaf.
+    pub fn executable_leaf_hash(&self) -> anyhow::Result<TapLeafHash> {
+        Ok(self.compiled()?.executable_leaf_hash())
+    }
+
+    /// Script pubkey that locks funds to this signature-bearing vote.
+    pub fn script_pubkey(&self, participant_signature: Signature) -> anyhow::Result<Script> {
+        self.compiled()?.script_pubkey(participant_signature)
     }
 }

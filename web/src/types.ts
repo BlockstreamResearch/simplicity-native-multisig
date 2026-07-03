@@ -80,22 +80,14 @@ export type SignedVoteResult = {
   derivationPath: string;
   xOnlyPublicKey: string;
   messageHash: string;
-  multisigInputCount: number;
   signatureHex: string;
   voteScriptPubkey: string;
   voteAddress: string;
-  carrierOutputs: OutputSummary[];
-};
-
-export type CarrierAppendResult = {
-  psetBase64: string;
-  outputCount: number;
 };
 
 export type ParticipantAnnouncementAppendResult = {
   psetBase64: string;
   participantIndex: number;
-  xOnlyPublicKey: string;
 };
 
 export type ParticipantAnnouncement = {
@@ -113,10 +105,8 @@ export type DecodedVoteResult = {
   proposedTxHex: string;
   participantSignatureHex: string;
   messageHash: string;
-  multisigInputCount: number;
   totalProposedOutputs: number;
   proposalInputOutpoints: WireOutpoint[];
-  voteScriptPubkey: string;
   voteAddress: string;
   voteUtxo?: WireUtxo;
 };
@@ -137,12 +127,6 @@ export type ExecutorInputSecret = {
   value: number;
   assetBlindingFactor: string;
   valueBlindingFactor: string;
-};
-
-type OutputSummary = {
-  scriptPubkey: string;
-  asset: string;
-  value: number;
 };
 
 export type VoteInput = {
