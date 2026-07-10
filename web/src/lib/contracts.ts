@@ -133,6 +133,7 @@ export async function createProposedSpend(
 export async function createSignedVote(
   session: MultisigSession,
   proposedPsetBase64: string,
+  multisigUtxos: WireUtxo[],
   totalProposedOutputs: number,
   mnemonic: string,
 ): Promise<SignedVoteResult> {
@@ -140,6 +141,7 @@ export async function createSignedVote(
     contractModule.createSignedVote(
       JSON.stringify(session),
       proposedPsetBase64,
+      JSON.stringify(multisigUtxos),
       totalProposedOutputs,
       mnemonic,
     ),

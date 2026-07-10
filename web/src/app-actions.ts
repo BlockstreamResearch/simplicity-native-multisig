@@ -229,7 +229,13 @@ export function createAppActions(ctx: AppActionContext) {
     const mnemonic = claimed?.mnemonic ?? claimMnemonic;
     await withBusyAction("create-vote", async () => {
       const next = await run(ctx, "Signing vote", () =>
-        createSignedVote(session, proposal.psetBase64, proposal.totalProposedOutputs, mnemonic),
+        createSignedVote(
+          session,
+          proposal.psetBase64,
+          proposal.inputUtxos,
+          proposal.totalProposedOutputs,
+          mnemonic,
+        ),
       );
       if (next) {
         setVote(next);

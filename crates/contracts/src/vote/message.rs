@@ -17,6 +17,24 @@ use simplicityhl::elements::hashes::{Hash, HashEngine, sha256};
 use simplicityhl::elements::taproot::TapLeafHash;
 use simplicityhl::elements::{Script, Transaction};
 
+/// Domain-separation tag for the base message.
+pub const BASE_MESSAGE_TAG: &[u8] = b"SIMPVOTE-BASE-V1";
+
+/// Domain-separation tag for the participant message.
+pub const PARTICIPANT_MESSAGE_TAG: &[u8] = b"SIMPVOTE-MSG-V1";
+
+/// BIP-340-style tagged engine: SHA256(SHA256(tag) || SHA256(tag) || ...).
+///
+/// `multisig_n_of_3.simf` hardcodes the two tag hashes as constants; the
+/// `tag_hashes_match_simf_constants` test keeps them in sync.
+fn tagged_engine(tag: &[u8]) -> sha256::HashEngine {
+    let tag_hash = sha256::Hash::hash(tag);
+    let mut engine = sha256::Hash::engine();
+    engine.input(tag_hash.as_byte_array());
+    engine.input(tag_hash.as_byte_array());
+    engine
+}
+
 fn input_hash(engine: &mut sha256::HashEngine, hash: &sha256::Hash) {
     engine.input(hash.as_byte_array());
 }
@@ -57,7 +75,7 @@ pub fn base_message_and_input_count(
     multisig_script: &Script,
     total_proposed_outputs: u16,
 ) -> anyhow::Result<(sha256::Hash, u32)> {
-    let mut engine = sha256::Hash::engine();
+    let mut engine = tagged_engine(BASE_MESSAGE_TAG);
     let mut multisig_input_count = 0_u32;
     for input in multisig_input_prefix(proposed_tx, multisig_script) {
         if input.is_pegin {
@@ -126,8 +144,25 @@ pub fn participant_message(
     vote_executable_leaf_hash: TapLeafHash,
     base_message: sha256::Hash,
 ) -> sha256::Hash {
-    let mut engine = sha256::Hash::engine();
+    let mut engine = tagged_engine(PARTICIPANT_MESSAGE_TAG);
     engine.input(vote_executable_leaf_hash.as_byte_array());
     input_hash(&mut engine, &base_message);
     sha256::Hash::from_engine(engine)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tag_hashes_match_simf_constants() {
+        assert_eq!(
+            sha256::Hash::hash(BASE_MESSAGE_TAG).to_string(),
+            "e7e94afa5274e1afeb6e383b5aa9f7358f6fa548888a8ce57617765f861e7415",
+        );
+        assert_eq!(
+            sha256::Hash::hash(PARTICIPANT_MESSAGE_TAG).to_string(),
+            "e5e665875148ebde5f8bccb86eb4ec0168ba2d8ea914097aa67d79642be54fc0",
+        );
+    }
 }

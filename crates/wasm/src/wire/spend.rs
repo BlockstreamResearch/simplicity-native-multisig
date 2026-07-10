@@ -70,8 +70,10 @@ pub fn create_proposed_spend(
     }
     signed_outputs.extend(fee_outputs);
 
-    let proposed_pst = create_proposed_multisig_spend(&multisig_script, &utxos, signed_outputs);
+    let mut proposed_pst = create_proposed_multisig_spend(&multisig_script, &utxos, signed_outputs);
+    attach_missing_witness_utxos(&mut proposed_pst, &utxos);
     let proposed_tx = proposed_pst.extract_tx()?;
+    verify_proposal_balance(&builder, &proposed_pst, total_proposed_outputs)?;
     let vote_plan = create_vote(&builder, &proposed_pst, total_proposed_outputs)?;
 
     to_json(&ProposalResult {
@@ -248,7 +250,7 @@ fn liquid_testnet_genesis_hash() -> BlockHash {
     BlockHash::from_byte_array(LIQUID_TESTNET_GENESIS_BYTES)
 }
 
-fn wire_utxos_into_utxos(utxos: Vec<WireUtxo>) -> anyhow::Result<Vec<Utxo>> {
+pub(super) fn wire_utxos_into_utxos(utxos: Vec<WireUtxo>) -> anyhow::Result<Vec<Utxo>> {
     utxos.into_iter().map(wire_utxo_into_utxo).collect()
 }
 

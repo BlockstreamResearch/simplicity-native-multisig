@@ -11,7 +11,7 @@ use contracts::common::Utxo;
 use contracts::multisig::{MultisigBuilder, PARTICIPANT_COUNT};
 use contracts::sdk::{
     VoteInput, create_proposed_multisig_spend, create_vote, finalize_multisig_spend,
-    finalize_prepared_multisig_spend, prepare_multisig_spend_inputs,
+    finalize_prepared_multisig_spend, prepare_multisig_spend_inputs, verify_proposal_balance,
 };
 use contracts::vote::onchain_encoder;
 use elements::confidential::{self, AssetBlindingFactor, ValueBlindingFactor};
@@ -62,6 +62,22 @@ pub use self::vote::{
     append_vote_carrier_outputs, create_signed_vote, decode_vote_transaction,
     decode_vote_transaction_auto,
 };
+
+/// Attach witness UTXO data to PSET inputs that lack it, matching by outpoint.
+///
+/// Balance verification needs the input amounts, which a PSET reconstructed
+/// from chain data does not carry.
+fn attach_missing_witness_utxos(pst: &mut PartiallySignedTransaction, utxos: &[Utxo]) {
+    for input in pst.inputs_mut() {
+        if input.witness_utxo.is_some() {
+            continue;
+        }
+        let outpoint = OutPoint::new(input.previous_txid, input.previous_output_index);
+        if let Some(utxo) = utxos.iter().find(|utxo| utxo.outpoint == outpoint) {
+            input.witness_utxo = Some(utxo.txout.clone());
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests;

@@ -65,7 +65,7 @@ fn create_proposed_spend_rejects_negative_amount_json() -> anyhow::Result<()> {
 
 #[test]
 fn auto_decodes_vote_transaction_with_vote_utxo() -> anyhow::Result<()> {
-    let fixture = proposal_fixture(10_000, 1_000, 200)?;
+    let fixture = proposal_fixture(1_200, 1_000, 200)?;
     let proposed_pst = pset_from_base64(&fixture.proposal.pset_base64)?;
     let proposed_tx = proposed_pst.extract_tx()?;
 

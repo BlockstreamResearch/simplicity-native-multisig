@@ -17,7 +17,7 @@ use simplicityhl::elements::schnorr::Keypair;
 use simplicityhl::elements::secp256k1_zkp::schnorr::Signature;
 use simplicityhl::elements::secp256k1_zkp::{Message, SECP256K1};
 use simplicityhl::elements::taproot::ControlBlock;
-use simplicityhl::elements::{BlockHash, Script, Transaction};
+use simplicityhl::elements::{AssetId, BlockHash, Script, Transaction};
 use simplicityhl::simplicity::jet::Elements;
 use simplicityhl::simplicity::jet::elements::{ElementsEnv, ElementsUtxo};
 use simplicityhl::simplicity::{BitMachine, Cmr, RedeemNode, Value as SimplicityValue};
@@ -113,6 +113,101 @@ pub fn create_vote(
         message: Message::from_digest(*message_hash.as_byte_array()),
         message_hash,
     })
+}
+
+fn add_asset_amount(
+    totals: &mut Vec<(AssetId, u64)>,
+    asset: AssetId,
+    amount: u64,
+) -> anyhow::Result<()> {
+    if let Some((_, total)) = totals.iter_mut().find(|(current, _)| *current == asset) {
+        *total = total
+            .checked_add(amount)
+            .ok_or_else(|| anyhow::anyhow!("proposal amount overflow for asset {asset}"))?;
+    } else {
+        totals.push((asset, amount));
+    }
+    Ok(())
+}
+
+/// Verify per-asset amount conservation for a proposed multisig spend.
+///
+/// The participant signature only covers the multisig input prefix and the
+/// first `total_proposed_outputs` outputs, so any committed input amount not
+/// consumed by that window escapes the signed message. Before signing, every
+/// multisig input amount must be accounted for by a signed output or an
+/// explicit trailing fee output.
+///
+/// Every multisig-prefix input must carry an explicit witness UTXO, and every
+/// output past the signed range must be a fee output (empty script).
+pub fn verify_proposal_balance(
+    multisig_builder: &MultisigBuilder,
+    proposed_pst: &PartiallySignedTransaction,
+    total_proposed_outputs: u16,
+) -> anyhow::Result<()> {
+    let proposed_tx = proposed_pst.extract_tx()?;
+    let multisig_script = multisig_builder.script_pubkey()?;
+    let multisig_input_count = multisig_input_prefix(&proposed_tx, &multisig_script).count();
+
+    let mut input_totals = Vec::new();
+    for (index, input) in proposed_pst
+        .inputs()
+        .iter()
+        .take(multisig_input_count)
+        .enumerate()
+    {
+        let txout = input.witness_utxo.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("multisig input {index} is missing witness UTXO data")
+        })?;
+        let asset = txout
+            .asset
+            .explicit()
+            .ok_or_else(|| anyhow::anyhow!("multisig input {index} asset must be explicit"))?;
+        let value = txout
+            .value
+            .explicit()
+            .ok_or_else(|| anyhow::anyhow!("multisig input {index} value must be explicit"))?;
+        add_asset_amount(&mut input_totals, asset, value)?;
+    }
+
+    let mut output_totals = Vec::new();
+    for (index, output) in proposed_tx.output.iter().enumerate() {
+        if index >= usize::from(total_proposed_outputs) && !output.script_pubkey.is_empty() {
+            anyhow::bail!(
+                "output {index} is outside the signed range and is not a fee output; \
+                 the participant signature would not constrain it"
+            );
+        }
+        let asset = output
+            .asset
+            .explicit()
+            .ok_or_else(|| anyhow::anyhow!("proposed output {index} asset must be explicit"))?;
+        let value = output
+            .value
+            .explicit()
+            .ok_or_else(|| anyhow::anyhow!("proposed output {index} value must be explicit"))?;
+        add_asset_amount(&mut output_totals, asset, value)?;
+    }
+
+    for (asset, input_total) in &input_totals {
+        let output_total = output_totals
+            .iter()
+            .find(|(current, _)| current == asset)
+            .map_or(0, |(_, total)| *total);
+        if output_total != *input_total {
+            anyhow::bail!(
+                "multisig inputs commit {input_total} of asset {asset} but proposed outputs \
+                 (including fees) consume {output_total}"
+            );
+        }
+    }
+    for (asset, _) in &output_totals {
+        if !input_totals.iter().any(|(current, _)| current == asset) {
+            anyhow::bail!("proposed outputs spend asset {asset} that no multisig input provides");
+        }
+    }
+
+    Ok(())
 }
 
 /// Build a proposal PSET whose input prefix is marked as multisig-owned.

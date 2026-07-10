@@ -86,12 +86,14 @@ pub fn create_proposed_spend(
 pub fn create_signed_vote(
     session_json: String,
     proposed_pset_base64: String,
+    multisig_utxos_json: String,
     total_proposed_outputs: u16,
     mnemonic: String,
 ) -> Result<String, JsValue> {
     map_result(wire::create_signed_vote(
         &session_json,
         &proposed_pset_base64,
+        &multisig_utxos_json,
         total_proposed_outputs,
         &mnemonic,
     ))

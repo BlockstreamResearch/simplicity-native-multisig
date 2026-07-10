@@ -90,10 +90,14 @@ fn add_proposed_output_hash(ctx: Ctx8, total_proposed: u16, index: u16) -> Eithe
 // It also includes outputs proposed by the participant, i.e. jet::output_hash(i).
 // In theory, there can be 2^16 - 1 outputs.
 //
-// Therefore, the base message is:
-// SHA256(jet::input_hash(0) || ... || jet::input_hash(total_multisig_inputs) || jet::output_hash(0) || ... || jet::output_hash(witness::TOTAL_PROPOSED_OUTPUTS))
+// The hash is domain-separated in the BIP-340 tagged style, so the base message is:
+// SHA256(SHA256("SIMPVOTE-BASE-V1") || SHA256("SIMPVOTE-BASE-V1") || jet::input_hash(0) || ... || jet::input_hash(total_multisig_inputs) || jet::output_hash(0) || ... || jet::output_hash(witness::TOTAL_PROPOSED_OUTPUTS))
 fn base_message_and_input_count(total_proposed_outputs: u16) -> (u256, u32) {
+    // SHA256("SIMPVOTE-BASE-V1"), kept in sync with BASE_MESSAGE_TAG in vote/message.rs.
+    let base_message_tag_hash: u256 = 0xe7e94afa5274e1afeb6e383b5aa9f7358f6fa548888a8ce57617765f861e7415;
     let ctx: Ctx8 = jet::sha_256_ctx_8_init();
+    let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, base_message_tag_hash);
+    let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, base_message_tag_hash);
     let input_result: Either<(Ctx8, u32), (Ctx8, u32)> = for_while::<add_multisig_input_hash>((ctx, 0), jet::current_script_hash());
 
     let (ctx, multisig_input_count): (Ctx8, u32) = unwrap_left::<(Ctx8, u32)>(input_result);
@@ -107,7 +111,7 @@ fn base_message_and_input_count(total_proposed_outputs: u16) -> (u256, u32) {
 // Build the final message that is signed by the participant.
 //
 // To lock in the prechecks that vote.simf could include, every participant signs:
-// SHA256(vote_executable_leaf_hash || base_message)
+// SHA256(SHA256("SIMPVOTE-MSG-V1") || SHA256("SIMPVOTE-MSG-V1") || vote_executable_leaf_hash || base_message)
 //
 // The vote_executable_leaf_hash identifies that participant's own vote.simf executable leaf.
 // Participants do not need to sign CMRs of other participants' vote.simf programs.
@@ -115,7 +119,11 @@ fn base_message_and_input_count(total_proposed_outputs: u16) -> (u256, u32) {
 // With this structure, the signature locks in the inputs being spent, the output shape,
 // and the additional checks that vote.simf should perform.
 fn participant_message(vote_executable_leaf_hash: u256, base_message: u256) -> u256 {
+    // SHA256("SIMPVOTE-MSG-V1"), kept in sync with PARTICIPANT_MESSAGE_TAG in vote/message.rs.
+    let participant_message_tag_hash: u256 = 0xe5e665875148ebde5f8bccb86eb4ec0168ba2d8ea914097aa67d79642be54fc0;
     let ctx: Ctx8 = jet::sha_256_ctx_8_init();
+    let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, participant_message_tag_hash);
+    let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, participant_message_tag_hash);
     let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, vote_executable_leaf_hash);
     let ctx: Ctx8 = jet::sha_256_ctx_8_add_32(ctx, base_message);
     jet::sha_256_ctx_8_finalize(ctx)

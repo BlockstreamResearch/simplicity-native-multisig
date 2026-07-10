@@ -10,6 +10,7 @@ fn finalization_accounts_for_vote_input_value_as_fee() -> anyhow::Result<()> {
     let fixture = proposal_fixture(4_300, 4_000, 300)?;
     let vote_inputs = vote_inputs_json(
         &fixture.session_json,
+        &fixture.multisig_utxos,
         &fixture.proposal,
         distinct_mnemonics(),
     )?;
@@ -45,6 +46,7 @@ fn prepared_executor_pset_is_blinded_after_final_shape_is_known() -> anyhow::Res
     let fixture = proposal_fixture(4_300, 4_000, 300)?;
     let vote_inputs_json = vote_inputs_json(
         &fixture.session_json,
+        &fixture.multisig_utxos,
         &fixture.proposal,
         distinct_mnemonics(),
     )?;

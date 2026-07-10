@@ -101,13 +101,16 @@
   \subsection{Participant Discovery}
   \label{sec:discovery}
 
+  Multisig setup occurs out of band.
+  Participants agree on an ordered list of x-only public keys and a threshold, the number of approvals required to spend.
+  This configuration determines the Taproot multisig address; Appendix~\ref{app:construction} describes its construction.
+
   After multisig setup, every vote a participant broadcasts must be discoverable by the other participants.
   For that purpose, we utilize descriptors \cite{bip380}.
 
   When participants confirm joining the multisig, each participant announces their own descriptor alongside the confirmation.
   Concretely, the participant makes a dust transfer to the multisig address and attaches \texttt{OP\_RETURN} outputs carrying an announcement record \cite{native-multisig-announcement}.
-  The confirmation payload contains the participant index, the participant's x-only public key, the
-  descriptor itself, and a BIP-340 signature over the message:
+  The confirmation payload contains the participant's index in the ordered key list, x-only public key, descriptor, and a BIP-340 signature over a message that commits to the agreed threshold:
 
   \begin{equation}
     \mathrm{SHA256}(
@@ -122,6 +125,9 @@
 
   The signature binds the descriptor to this exact multisig configuration, so the confirmation can neither be forged by a non-participant nor replayed against a different multisig.
   Announced descriptors must be public, and descriptors carrying blinding material MUST not be shared due to confidentiality reasons.
+  Each participant announces exactly one descriptor.
+  Conflicting announcements for one participant invalidate the multisig session.
+  The scanner does not select a winner (Section~\ref{sec:limitations}).
 
   We additionally require that every vote published by a multisig participant be broadcast from this announced descriptor.
   This is what allows the discovery of votes and signed intent proposals.
@@ -155,7 +161,7 @@
   \subsection{Wire Format}
   \label{sec:wire}
 
-  Both mulitisg joining confirmation announcements (magic \texttt{SIMPANNC}) and vote proposals (magic \texttt{SIMPVOTE}) use the same chunked record framing.
+  Both multisig joining confirmation announcements (magic \texttt{SIMPANNC}) and vote proposals (magic \texttt{SIMPVOTE}) use the same chunked record framing.
   Every record is a single \texttt{OP\_RETURN} output whose script carries one data push of at most 75 bytes.
   Each record starts with a 10-byte header: an 8-byte magic, a 1-byte version (currently~1), and a 1-byte record kind.
 
@@ -267,6 +273,14 @@
   SHA-256 checksum matches.
   Anything else is rejected, so a malformed or partially confirmed carrier transaction can never
   produce a plausible-looking proposal.
+
+  \paragraph{Relay Policy.}
+  Each record occupies a separate output, so a carrier transaction uses several \texttt{OP\_RETURN} outputs, each with a scriptPubKey of at most 77 bytes.
+  Liquid relay policy permits this layout.
+  Elements allows multiple data-carrier outputs on PAK-enforced chains, including Liquid mainnet (\texttt{multi\_data\_permitted}),
+  and each output remains below the default 83-byte limit \cite{elements-policy}.
+  Bitcoin relay policy historically allowed only one \texttt{OP\_RETURN} output per transaction.
+  Bitcoin Core~30.0 instead applies the data-carrier limit to their combined size \cite{bitcoin-core-30}.
 
   \paragraph{Current limitation.}
   The protocol currently supports only unconfidential transactions on Liquid.
@@ -416,6 +430,29 @@
   The work on formal verification of the multisig covenants is ongoing.
   Details will be mentioned separately when it is done.
 
+  \section{Limitations and Future Work}
+  \label{sec:limitations}
+
+  \paragraph{Privacy.}
+  Public descriptors link each vote to its participant, and publishing a descriptor on chain permanently exposes the transaction history it covers.
+  This enables permissionless discovery but sacrifices privacy.
+  Confidential coordination, like confidential transport (Section~\ref{sec:wire}), remains out of scope.
+
+  \paragraph{Descriptor rotation.}
+  The protocol does not support descriptor rotation.
+  Changing a descriptor requires a new multisig setup.
+  Conflicting announcements for one participant invalidate the session.
+  The reference implementation gives priority to neither the first nor the last.
+
+  \paragraph{Encrypted coordination.}
+  The protocol does not currently hide vote contents from outside observers.
+  A future version could establish a group secret during setup and use it to derive per-participant tag chains and encrypt payloads, following BIP-352 \cite{bip352}.
+  It could also derive a view key for a designated auditor.
+
+  \paragraph{Policy source distribution.}
+  Custom policy sources must remain publicly available (Section~\ref{sec:votes}), leaving one off-chain dependency.
+  A future version could commit to sources on chain or distribute them through content-addressed storage.
+
   \appendix
 
   \section{Multisig Construction and Security Considerations}
@@ -438,6 +475,12 @@
 
   \textbf{Important note:} in this model, only a part of the transaction is signed.
   Therefore, when a participant creates the message, they must ensure that, for example, when 1 LBTC is spent, all outputs that should be constrained are in the range $0..=j$.
+  Before signing, a participant MUST verify, for each asset, that the sum of the committed multisig input
+  amounts equals the sum of the proposed output amounts in the signed range plus the amounts of any declared fee outputs.
+  Otherwise, the signature leaves the remainder unconstrained.
+  The reference implementation enforces this check both when a proposal is created and when a vote is signed.
+
+  Enforcing this per-asset balance check in the multisig covenant is out of scope for this paper.
 
   As a result, the base message is:
 
@@ -445,11 +488,18 @@
     \mathrm{base\_message}
     =
     \mathrm{SHA256}(
+    t_{\mathrm{base}}
+    \,\|\,
+    t_{\mathrm{base}}
+    \,\|\,
     \mathrm{input\_hashes}
     \,\|\,
     \mathrm{output\_hashes}
-    ).
+    ),
   \end{equation}
+
+  where $t_{\mathrm{base}} = \mathrm{SHA256}(\texttt{"SIMPVOTE-BASE-V1"})$.
+  Prefixing the payload with two copies of the ASCII tag hash follows the BIP-340 tagged-hash construction and separates this message from other protocol contexts.
 
   Every participant signs a message that also contains the executable leaf hash, which represents the set of their policies:
 
@@ -457,11 +507,17 @@
     \mathrm{participant\_message}
     =
     \mathrm{SHA256}(
+    t_{\mathrm{msg}}
+    \,\|\,
+    t_{\mathrm{msg}}
+    \,\|\,
     \mathrm{vote\_executable\_leaf\_hash}
     \,\|\,
     \mathrm{base\_message}
-    ).
+    ),
   \end{equation}
+
+  where $t_{\mathrm{msg}} = \mathrm{SHA256}(\texttt{"SIMPVOTE-MSG-V1"})$.
 
   \subsection{Programmable Signature}
 
@@ -726,6 +782,7 @@ assert!(jet::eq_256(
   Also, by Bitcoin consensus rules, when an input is included in the transaction that is being spent, the proper witness should be provided.
 
   \subsection{Uncounted Vote Inputs}
+  \label{app:uncounted}
 
   There is a caveat on how uncounted votes can be spent; see \texttt{vote.simf} for more details \cite{native-multisig-vote}.
 

@@ -44,15 +44,24 @@ struct CarrierAppendResult<'a> {
 }
 
 /// Create and sign a vote for `proposed_pset_base64` using a participant mnemonic.
+///
+/// `multisig_utxos_json` carries the UTXOs spent by the proposal's multisig
+/// inputs so the per-asset balance of the proposal can be verified before
+/// signing, even when the PSET was reconstructed from chain data and lacks
+/// witness UTXOs.
 pub fn create_signed_vote(
     session_json: &str,
     proposed_pset_base64: &str,
+    multisig_utxos_json: &str,
     total_proposed_outputs: u16,
     mnemonic: &str,
 ) -> anyhow::Result<String> {
     let session: MultisigSession = serde_json::from_str(session_json)?;
     let builder = session_builder(&session)?;
-    let proposed_pst = pset_from_base64(proposed_pset_base64)?;
+    let mut proposed_pst = pset_from_base64(proposed_pset_base64)?;
+    let multisig_utxos = spend::wire_utxos_into_utxos(serde_json::from_str(multisig_utxos_json)?)?;
+    attach_missing_witness_utxos(&mut proposed_pst, &multisig_utxos);
+    verify_proposal_balance(&builder, &proposed_pst, total_proposed_outputs)?;
     let (participant_index, keypair, path) = matching_participant_keypair(
         &session.participants,
         mnemonic,

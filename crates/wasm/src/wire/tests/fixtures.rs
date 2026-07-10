@@ -119,18 +119,21 @@ pub(super) fn proposal_fixture(
 
 pub(super) fn vote_inputs_json(
     session_json: &str,
+    multisig_utxos: &str,
     proposal: &ProposalResultForTest,
     mnemonics: [&str; PARTICIPANT_COUNT],
 ) -> anyhow::Result<String> {
     let first_vote: SignedVoteResultForTest = serde_json::from_str(&create_signed_vote(
         session_json,
         &proposal.pset_base64,
+        multisig_utxos,
         proposal.total_proposed_outputs,
         mnemonics[0],
     )?)?;
     let second_vote: SignedVoteResultForTest = serde_json::from_str(&create_signed_vote(
         session_json,
         &proposal.pset_base64,
+        multisig_utxos,
         proposal.total_proposed_outputs,
         mnemonics[1],
     )?)?;
