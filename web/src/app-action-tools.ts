@@ -8,12 +8,14 @@ export function showToast(
   tone: ToastMessage["tone"],
   title: string,
   message: string,
+  linkUrl?: string,
 ) {
   ctx.setToast({
     id: randomId(),
     tone,
     title,
     message,
+    linkUrl,
   });
 }
 
@@ -30,8 +32,8 @@ export async function run<T>(
     return value;
   } catch (nextError) {
     const message = nextError instanceof Error ? nextError.message : String(nextError);
-    showToast(ctx, "error", label, message);
-    ctx.setActivity("Needs attention");
+    showToast(ctx, "error", `${label} failed`, message);
+    ctx.setActivity(`${label} failed`);
     return undefined;
   }
 }

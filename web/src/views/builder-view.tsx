@@ -12,6 +12,8 @@ type BuilderViewProps = {
 
 export function BuilderView({ model }: BuilderViewProps) {
   const {
+    activeMultisigDescriptor,
+    announcementScan,
     canFinalize,
     eligibleVotes,
     finalSpend,
@@ -48,21 +50,38 @@ export function BuilderView({ model }: BuilderViewProps) {
     },
   ];
 
+  if (!session) {
+    return activeMultisigDescriptor ? (
+      <div className="empty-state">
+        <div>
+          <strong>Multisig loaded — waiting for participant announcements</strong>
+          <span>
+            {announcementScan.announcements.length}/{activeMultisigDescriptor.participants.length}{" "}
+            participants announced. The builder unlocks once every participant has published an
+            announcement, so their wallets can be discovered.
+          </span>
+        </div>
+        <button className="primary" onClick={() => setActiveTab("create")}>
+          <Vote size={15} />
+          Publish announcements
+        </button>
+      </div>
+    ) : (
+      <div className="empty-state">
+        <div>
+          <strong>No multisig descriptor loaded</strong>
+          <span>Load a descriptor shared with you, or create a new multisig, to start building.</span>
+        </div>
+        <button className="primary" onClick={() => setActiveTab("setup")}>
+          <KeyRound size={15} />
+          Open setup
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
-      {!session && (
-        <div className="empty-state">
-          <div>
-            <strong>No multisig descriptor loaded</strong>
-            <span>Load an existing descriptor or create a demo descriptor before scanning.</span>
-          </div>
-          <button className="primary" onClick={() => setActiveTab("setup")}>
-            <KeyRound size={15} />
-            Open setup
-          </button>
-        </div>
-      )}
-
       <div className="flow-bar">
         <FlowSteps steps={spendSteps} />
         <span className="flow-note">

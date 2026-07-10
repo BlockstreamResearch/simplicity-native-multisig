@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   emptyAnnouncementScan,
   emptyScan,
@@ -37,7 +37,34 @@ export type ToastMessage = {
   tone: "error" | "success";
   title: string;
   message: string;
+  linkUrl?: string;
 };
+
+const activeTabStorageKey = "simplicity-multisig.active-tab";
+const descriptorStorageKey = "simplicity-multisig.descriptor";
+const appTabs: AppTab[] = ["builder", "proposals", "create", "setup", "faucet", "transactions"];
+
+function readStorage(key: string): string | undefined {
+  try {
+    return window.localStorage.getItem(key) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeStorage(key: string, value: string | undefined) {
+  try {
+    if (value === undefined) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, value);
+  } catch {
+    // Private browsing or blocked storage: the app still works, it just forgets.
+  }
+}
+
+function storedActiveTab(): AppTab {
+  const stored = readStorage(activeTabStorageKey);
+  return appTabs.includes(stored as AppTab) ? (stored as AppTab) : "setup";
+}
 
 function safeSats(value: number): number {
   return Number.isFinite(value) ? value : 0;
@@ -51,7 +78,7 @@ function assetTotals(items: Array<{ asset: string; value: number }>): Map<string
 }
 
 export function useAppModel() {
-  const [activeTab, setActiveTab] = useState<AppTab>("builder");
+  const [activeTab, setActiveTab] = useState<AppTab>(storedActiveTab);
   const [info, setInfo] = useState<LiquidTestnetInfo>();
   const [descriptorText, setDescriptorText] = useState("");
   const [threshold, setThreshold] = useState(2);
@@ -87,6 +114,21 @@ export function useAppModel() {
   const [transactionQuery, setTransactionQuery] = useState("");
   const [activity, setActivity] = useState("Ready");
   const [toast, setToast] = useState<ToastMessage>();
+  const [pendingDescriptorRestore] = useState(() => readStorage(descriptorStorageKey));
+  const descriptorRestoreStarted = useRef(false);
+
+  useEffect(() => {
+    writeStorage(activeTabStorageKey, activeTab);
+  }, [activeTab]);
+
+  // Success toasts dismiss themselves; errors stay until read and dismissed.
+  useEffect(() => {
+    if (!toast || toast.tone !== "success") return;
+    const timer = window.setTimeout(() => {
+      setToast((current) => (current?.id === toast.id ? undefined : current));
+    }, 8_000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     liquidTestnetInfo()
@@ -340,6 +382,23 @@ export function useAppModel() {
     setToast,
     setVote,
   });
+
+  // Keep the loaded descriptor across reloads: coordination waits on other
+  // participants, so losing it to an accidental refresh is costly.
+  useEffect(() => {
+    if (multisigDescriptor) {
+      writeStorage(descriptorStorageKey, JSON.stringify(multisigDescriptor));
+    }
+  }, [multisigDescriptor]);
+
+  const restoreDescriptor = actions.loadDescriptor;
+  useEffect(() => {
+    if (!info || !pendingDescriptorRestore || descriptorRestoreStarted.current) return;
+    descriptorRestoreStarted.current = true;
+    void restoreDescriptor(pendingDescriptorRestore).then((restored) => {
+      if (!restored) writeStorage(descriptorStorageKey, undefined);
+    });
+  }, [info, pendingDescriptorRestore, restoreDescriptor]);
 
   return {
     ...actions,

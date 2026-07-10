@@ -5,6 +5,45 @@ import type { AppModel } from "../app-model";
 import { CodeBlock, Panel } from "../components";
 import { middle, sats } from "../lib/format";
 import type { SpendOutput } from "../types";
+import { liquidTestnetTestAssetId } from "./liquid-testnet-display";
+
+function AssetPicker({
+  asset,
+  policyAsset,
+  onChange,
+}: {
+  asset: string;
+  policyAsset?: string;
+  onChange: (asset: string) => void;
+}) {
+  const isKnown =
+    asset !== "" && (asset === policyAsset || asset === liquidTestnetTestAssetId);
+
+  return (
+    <div className="asset-cell">
+      <select
+        aria-label="Output asset"
+        value={isKnown ? asset : "custom"}
+        onChange={(event) => {
+          const next = event.target.value;
+          onChange(next === "custom" ? "" : next);
+        }}
+      >
+        {policyAsset && <option value={policyAsset}>L-BTC</option>}
+        <option value={liquidTestnetTestAssetId}>TEST</option>
+        <option value="custom">Custom asset…</option>
+      </select>
+      {!isKnown && (
+        <input
+          value={asset}
+          aria-label="Custom asset id"
+          onChange={(event) => onChange(event.target.value.trim())}
+          placeholder="Asset id (hex)"
+        />
+      )}
+    </div>
+  );
+}
 
 type ProposeSpendPanelProps = {
   icon: ReactNode;
@@ -61,13 +100,14 @@ export function ProposeSpendPanel({
           <span>Back to multisig</span>
         </div>
         <div>
-          <span className="muted-label">Fee</span>
+          <span className="muted-label">Fee (sats)</span>
           <input
             className="fee-input"
             type="number"
             min={0}
             step={1}
             value={feeAmount}
+            aria-label="Fee in satoshis"
             onChange={(event) => setFeeAmount(amountFromInput(event.target.value))}
           />
         </div>
@@ -110,22 +150,24 @@ export function ProposeSpendPanel({
               onChange={(event) => updateOutput(output.id, { address: event.target.value })}
               placeholder={output.kind === "transfer" ? "Liquid testnet address" : ""}
             />
-            <input
-              value={output.asset}
-              onChange={(event) => updateOutput(output.id, { asset: event.target.value })}
-              placeholder="Asset id"
+            <AssetPicker
+              asset={output.asset}
+              policyAsset={info?.policyAsset}
+              onChange={(asset) => updateOutput(output.id, { asset })}
             />
             <input
               type="number"
               min={0}
               step={1}
               value={output.value}
+              aria-label="Output amount in satoshis"
               onChange={(event) =>
                 updateOutput(output.id, { value: amountFromInput(event.target.value) })
               }
             />
             <button
               className="icon-only"
+              aria-label="Remove output"
               onClick={() => setOutputs((current) => current.filter((item) => item.id !== output.id))}
             >
               <Trash2 size={15} />

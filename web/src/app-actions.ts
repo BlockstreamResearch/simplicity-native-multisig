@@ -32,7 +32,13 @@ import {
 } from "./lib/lwk/scan";
 import { finalizeAndBroadcastSpend } from "./lib/lwk/spend";
 import { esploraTxHex } from "./lib/lwk/network";
-import { FaucetAsset, FaucetTarget, ScanTransaction, ScanVote } from "./types";
+import {
+  FaucetAsset,
+  FaucetTarget,
+  MultisigSession,
+  ScanTransaction,
+  ScanVote,
+} from "./types";
 
 export function createAppActions(ctx: AppActionContext) {
   const {
@@ -113,17 +119,43 @@ export function createAppActions(ctx: AppActionContext) {
       applyLoadedDescriptor(ctx, next);
       setDescriptorText(JSON.stringify(next, null, 2));
       setActiveTab("create");
+      await refreshAnnouncements(next);
     }
   }
 
-  async function loadDescriptor() {
+  async function loadDescriptor(text = descriptorText): Promise<boolean> {
     const nextDescriptor = await run(ctx, "Inspecting descriptor", () =>
-      inspectMultisigDescriptor(descriptorText),
+      inspectMultisigDescriptor(text),
     );
-    if (nextDescriptor) {
-      applyLoadedDescriptor(ctx, nextDescriptor);
-      await refreshAnnouncements(nextDescriptor);
+    if (!nextDescriptor) return false;
+    applyLoadedDescriptor(ctx, nextDescriptor);
+    setDescriptorText(text);
+    await refreshAnnouncements(nextDescriptor);
+    return true;
+  }
+
+  async function scanWithSession(target: MultisigSession): Promise<boolean> {
+    if (!info) return false;
+    setScan((current) => ({
+      ...current,
+      status: "scanning",
+      message: "Scanning Liquid testnet",
+    }));
+    const next = await run(ctx, "Scanning Liquid testnet", () =>
+      scanSession(target, info, claimed, scan.votes),
+    );
+    if (next) {
+      setScan(next);
+      setSelectedInputs(new Set(next.utxos.slice(0, 1).map(utxoKey)));
+      return true;
     }
+
+    setScan((current) => ({
+      ...current,
+      status: "error",
+      message: "Scan failed",
+    }));
+    return false;
   }
 
   async function refreshAnnouncements(descriptor = activeMultisigDescriptor): Promise<boolean> {
@@ -156,6 +188,9 @@ export function createAppActions(ctx: AppActionContext) {
       );
       setScan(emptyScan);
       clearProposalState(ctx);
+      // The session just became usable: follow up with the wallet scan so
+      // Builder/Proposals/Transactions fill in without a second manual scan.
+      await scanWithSession(next.session);
     }
     return true;
   }
@@ -165,27 +200,7 @@ export function createAppActions(ctx: AppActionContext) {
     if (!session) {
       return refreshAnnouncements();
     }
-
-    setScan((current) => ({
-      ...current,
-      status: "scanning",
-      message: "Scanning Liquid testnet",
-    }));
-    const next = await run(ctx, "Scanning Liquid testnet", () =>
-      scanSession(session, info, claimed, scan.votes),
-    );
-    if (next) {
-      setScan(next);
-      setSelectedInputs(new Set(next.utxos.slice(0, 1).map(utxoKey)));
-      return true;
-    }
-
-    setScan((current) => ({
-      ...current,
-      status: "error",
-      message: "Scan failed",
-    }));
-    return false;
+    return scanWithSession(session);
   }
 
   async function claim() {
@@ -246,7 +261,7 @@ export function createAppActions(ctx: AppActionContext) {
   async function broadcastVote() {
     if (!info || !session || !claimed || !proposal || !vote) return;
     if (!voteStakeValid) {
-      showToast(ctx, "error", "Publishing vote", satsAmountError("Vote amount"));
+      showToast(ctx, "error", "Invalid vote amount", satsAmountError("Vote amount"));
       return;
     }
     await withBusyAction("publish-vote", async () => {
@@ -258,7 +273,7 @@ export function createAppActions(ctx: AppActionContext) {
         await navigator.clipboard.writeText(published.txid).catch(() => undefined);
         await rescan();
         mergeDiscoveredVote(scanVoteFromDecoded(decoded, published.txid, published.explorerUrl));
-        showToast(ctx, "success", "Vote published", published.txid);
+        showToast(ctx, "success", "Vote published", published.txid, published.explorerUrl);
       }
     });
   }
@@ -286,7 +301,7 @@ export function createAppActions(ctx: AppActionContext) {
   async function publishAnnouncement() {
     if (!info || !activeMultisigDescriptor || !announcementMnemonic.trim()) return;
     if (!announcementStakeValid) {
-      showToast(ctx, "error", "Publishing participant announcement", satsAmountError("Dust amount"));
+      showToast(ctx, "error", "Invalid dust amount", satsAmountError("Dust amount"));
       return;
     }
     await withBusyAction("publish-announcement", async () => {
@@ -301,7 +316,13 @@ export function createAppActions(ctx: AppActionContext) {
       if (next) {
         await navigator.clipboard.writeText(next.txid).catch(() => undefined);
         if (await refreshAnnouncements(activeMultisigDescriptor)) {
-          showToast(ctx, "success", `Participant ${next.participantIndex + 1} announced`, next.txid);
+          showToast(
+            ctx,
+            "success",
+            `Participant ${next.participantIndex + 1} announced`,
+            next.txid,
+            `${info.explorerTxUrlPrefix}${next.txid}`,
+          );
         }
       }
     });
@@ -416,7 +437,7 @@ export function createAppActions(ctx: AppActionContext) {
         setFinalSpend(next);
         await navigator.clipboard.writeText(next.txid).catch(() => undefined);
         if (await rescan()) {
-          showToast(ctx, "success", "Final spend broadcast", next.txid);
+          showToast(ctx, "success", "Final spend broadcast", next.txid, next.explorerUrl);
         }
       }
     });

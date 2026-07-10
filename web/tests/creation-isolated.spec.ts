@@ -49,8 +49,7 @@ test("multisig creation descriptor can be moved between isolated browser session
     const loaderPage = await loaderContext.newPage();
     await loaderPage.goto("/");
     await expect(loaderPage).toHaveTitle("Simplicity Native Multisig");
-    await expect(loaderPage.getByRole("heading", { name: "No descriptor loaded" }))
-      .toBeVisible();
+    await expect(loaderPage.locator(".address-chip")).toHaveText("No descriptor loaded");
     await expect(loaderPage.getByText(descriptor.multisigAddress)).toHaveCount(0);
 
     await loaderPage.getByRole("button", { name: "Setup", exact: true }).click();
@@ -59,11 +58,9 @@ test("multisig creation descriptor can be moved between isolated browser session
       .fill(descriptorText);
     await loaderPage.getByRole("button", { name: "Load", exact: true }).click();
 
-    await expect(
-      loaderPage.getByRole("heading", {
-        name: /tex1pfzqs2mnzvmt96\.\.\.ugsw2qlq83kskdzf2t/,
-      }),
-    ).toBeVisible();
+    await expect(loaderPage.locator("button.address-chip")).toHaveText(
+      `${descriptor.multisigAddress.slice(0, 18)}...${descriptor.multisigAddress.slice(-18)}`,
+    );
 
     await loaderPage.getByRole("button", { name: "Create", exact: true }).click();
     await expect(loaderPage.getByText("Shareable multisig descriptor")).toBeVisible();
@@ -106,8 +103,21 @@ test("malformed descriptor load stays isolated and reports an error", async ({ p
   await page.getByRole("button", { name: "Load", exact: true }).click();
 
   await expect(page.locator(".toast.error")).toContainText("Inspecting descriptor");
-  await expect(page.getByRole("heading", { name: "No descriptor loaded" })).toBeVisible();
+  await expect(page.locator(".address-chip")).toHaveText("No descriptor loaded");
   await expect(page.getByText("Shareable multisig descriptor")).toHaveCount(0);
+});
+
+test("descriptor and active tab persist across reloads", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "Demo keys", exact: true }).click();
+  await expect(page.getByLabel("Participant key 1")).toHaveValue(/[0-9a-f]{64}/);
+  await page.getByRole("button", { name: "Create multisig", exact: true }).click();
+  await expect(page.getByText("Shareable multisig descriptor")).toBeVisible();
+
+  await page.reload();
+  await expect(page.locator("button.address-chip")).toHaveText(/tex1/, { timeout: 20_000 });
+  await expect(page.locator("nav.tabs button", { hasText: "Create" })).toHaveClass(/active/);
 });
 
 test("publish funding fee rate is relay-safe for vote and announcement broadcasts", () => {

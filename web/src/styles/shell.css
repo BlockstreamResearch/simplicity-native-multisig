@@ -63,6 +63,23 @@
   overflow-wrap: anywhere;
 }
 
+button.address-chip {
+  min-height: 0;
+  background: #fff;
+  gap: 6px;
+  cursor: pointer;
+}
+
+button.address-chip:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.address-chip.placeholder {
+  color: #777;
+  display: inline-flex;
+  align-items: center;
+}
+
 .status {
   display: inline-flex;
   align-items: center;
@@ -173,6 +190,11 @@
 .toast span {
   color: #333;
   overflow-wrap: anywhere;
+}
+
+.toast a {
+  font-size: 12px;
+  color: #333;
 }
 
 .empty-state {

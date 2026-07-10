@@ -1,4 +1,5 @@
 import { Copy, Droplets, ExternalLink, Loader2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { assetLabel } from "../app-helpers";
 import type { AppModel } from "../app-model";
 import { Panel } from "../components";
@@ -16,7 +17,8 @@ type FaucetViewProps = {
 const inAppRequestsAvailable = import.meta.env.DEV;
 
 export function FaucetView({ model }: FaucetViewProps) {
-  const { claimed, currentMultisigAddress, faucetBusy, faucetResult, fundFromFaucet, info } = model;
+  const { claimed, currentMultisigAddress, faucetBusy, faucetResult, fundFromFaucet, info, setActiveTab } =
+    model;
 
   return (
     <section className="content-grid">
@@ -29,6 +31,17 @@ export function FaucetView({ model }: FaucetViewProps) {
             busy={faucetBusy}
             onFund={fundFromFaucet}
             target="multisig"
+            hint={
+              currentMultisigAddress ? undefined : (
+                <>
+                  Create or load a multisig descriptor first on the{" "}
+                  <button className="inline-link" onClick={() => setActiveTab("setup")}>
+                    Setup tab
+                  </button>
+                  .
+                </>
+              )
+            }
           />
           <FundingTarget
             title="Participant wallet"
@@ -37,6 +50,17 @@ export function FaucetView({ model }: FaucetViewProps) {
             busy={faucetBusy}
             onFund={fundFromFaucet}
             target="participant"
+            hint={
+              claimed ? undefined : (
+                <>
+                  Verify a participant mnemonic on the{" "}
+                  <button className="inline-link" onClick={() => setActiveTab("builder")}>
+                    Builder tab
+                  </button>{" "}
+                  to reveal its funding address.
+                </>
+              )
+            }
           />
         </div>
         <div className="faucet-note">
@@ -76,6 +100,7 @@ function FundingTarget({
   busy,
   target,
   onFund,
+  hint,
 }: {
   title: string;
   address?: string;
@@ -83,6 +108,7 @@ function FundingTarget({
   busy?: string;
   target: FaucetTarget;
   onFund: (target: FaucetTarget, asset: FaucetAsset) => void;
+  hint?: ReactNode;
 }) {
   return (
     <div className="funding-target">
@@ -90,6 +116,7 @@ function FundingTarget({
         <span>{title}</span>
         <strong>{address ? middle(address, 18) : "Not available"}</strong>
       </div>
+      {hint && <p className="hint">{hint}</p>}
       <div className="button-row">
         {inAppRequestsAvailable && (
           <>

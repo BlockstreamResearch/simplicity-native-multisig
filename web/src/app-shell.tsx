@@ -2,7 +2,9 @@ import {
   AlertTriangle,
   Check,
   CircleDot,
+  Copy,
   Droplets,
+  ExternalLink,
   FileText,
   KeyRound,
   Loader2,
@@ -13,6 +15,7 @@ import {
   ShieldCheck,
   Vote,
 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { AppModel, AppTab } from "./app-model";
 import { middle } from "./lib/format";
 import { BuilderView } from "./views/builder-view";
@@ -66,18 +69,7 @@ export function AppShell({ model }: AppShellProps) {
             </div>
           </div>
           <div className="topbar-actions">
-            <a
-              className="button-link"
-              href={`${import.meta.env.BASE_URL}paper.pdf`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <FileText size={15} />
-              Whitepaper
-            </a>
-            <h2 className="address-chip">
-              {currentMultisigAddress ? middle(currentMultisigAddress, 18) : "No descriptor loaded"}
-            </h2>
+            <AddressChip address={currentMultisigAddress} />
             <div className={`status ${scan.status}`}>
               {scan.status === "scanning" ? <Loader2 className="spin" /> : <CircleDot />}
               <span>{activity}</span>
@@ -96,6 +88,15 @@ export function AppShell({ model }: AppShellProps) {
               <RefreshCcw />
               Scan
             </button>
+            <a
+              className="button-link"
+              href={`${import.meta.env.BASE_URL}paper.pdf`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <FileText size={15} />
+              Whitepaper
+            </a>
           </div>
         </div>
         <nav className="tabs" aria-label="Workspace sections">
@@ -114,12 +115,22 @@ export function AppShell({ model }: AppShellProps) {
 
       <section className="workspace">
         {toast && (
-          <div className="toast-stack" role="status" aria-live="polite">
-            <div className={`toast ${toast.tone}`} key={toast.id}>
+          <div className="toast-stack">
+            <div
+              className={`toast ${toast.tone}`}
+              key={toast.id}
+              role={toast.tone === "error" ? "alert" : "status"}
+            >
               {toast.tone === "error" ? <AlertTriangle size={17} /> : <Check size={17} />}
               <div>
                 <strong>{toast.title}</strong>
                 <span>{toast.message}</span>
+                {toast.linkUrl && (
+                  <a href={toast.linkUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink size={13} />
+                    View in explorer
+                  </a>
+                )}
               </div>
               <button onClick={() => setToast(undefined)}>Dismiss</button>
             </div>
@@ -133,5 +144,33 @@ export function AppShell({ model }: AppShellProps) {
         {activeTab === "transactions" && <TransactionsView model={model} />}
       </section>
     </main>
+  );
+}
+
+function AddressChip({ address }: { address?: string }) {
+  const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<number>(undefined);
+
+  useEffect(() => () => window.clearTimeout(resetTimer.current), []);
+
+  if (!address) {
+    return <span className="address-chip placeholder">No descriptor loaded</span>;
+  }
+
+  return (
+    <button
+      className="address-chip"
+      title={address}
+      aria-label={`Copy multisig address ${address}`}
+      onClick={() => {
+        navigator.clipboard.writeText(address);
+        setCopied(true);
+        window.clearTimeout(resetTimer.current);
+        resetTimer.current = window.setTimeout(() => setCopied(false), 1600);
+      }}
+    >
+      {middle(address, 18)}
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+    </button>
   );
 }

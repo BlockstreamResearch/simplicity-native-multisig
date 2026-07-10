@@ -1,4 +1,5 @@
 import { CircleDot, Copy, FileSearch, Fingerprint, Loader2, RefreshCcw } from "lucide-react";
+import { randomId } from "../app-helpers";
 import type { AppModel } from "../app-model";
 import { Panel } from "../components";
 import { demoMnemonics } from "../lib/demo";
@@ -18,10 +19,12 @@ export function SetupView({ model }: SetupViewProps) {
     loadDescriptor,
     participantKeys,
     refreshAnnouncements,
+    session,
     setAnnouncementMnemonic,
     setActiveTab,
     setClaimMnemonic,
     setDescriptorText,
+    setToast,
   } = model;
 
   return (
@@ -38,7 +41,7 @@ export function SetupView({ model }: SetupViewProps) {
           rows={10}
         />
         <div className="button-row">
-          <button className="primary" onClick={loadDescriptor}>
+          <button className="primary" onClick={() => loadDescriptor()}>
             Load
           </button>
           <button onClick={() => refreshAnnouncements()} disabled={!activeMultisigDescriptor || !info}>
@@ -49,21 +52,32 @@ export function SetupView({ model }: SetupViewProps) {
             )}
             Scan announcements
           </button>
-          <button onClick={() => setActiveTab("create")}>Create multisig</button>
+          <button onClick={() => setActiveTab("create")}>Create a new multisig</button>
         </div>
+        {activeMultisigDescriptor && !session && (
+          <p className="hint">
+            Descriptor loaded. Next step: every participant publishes an announcement on the{" "}
+            <button className="inline-link" onClick={() => setActiveTab("create")}>
+              Create tab
+            </button>{" "}
+            so the session can be recovered.
+          </p>
+        )}
       </Panel>
 
       <Panel title="Demo setup" icon={<Fingerprint size={16} />} wide>
         <p className="panel-note">
-          Three throwaway participant wallets for the demo flow. "Use" loads a mnemonic into the
-          claim and announcement forms.
+          Three throwaway participant wallets for the demo flow. "Use" fills the mnemonic into the
+          Announce form (Create tab) and the Claim form (Builder tab).
         </p>
         <div className="demo-list">
           {demoMnemonics.map((mnemonic, index) => (
             <div className="demo-row" key={mnemonic}>
               <div>
                 <span>Participant {index + 1}</span>
-                <strong>{participantKeys[index] ? middle(participantKeys[index], 12) : "Not loaded"}</strong>
+                <strong>
+                  {participantKeys[index] ? middle(participantKeys[index], 12) : "Key not derived"}
+                </strong>
               </div>
               <code>{mnemonic}</code>
               <div className="row-actions">
@@ -71,11 +85,29 @@ export function SetupView({ model }: SetupViewProps) {
                   onClick={() => {
                     setClaimMnemonic(mnemonic);
                     setAnnouncementMnemonic(mnemonic);
+                    setToast({
+                      id: randomId(),
+                      tone: "success",
+                      title: `Demo participant ${index + 1} selected`,
+                      message:
+                        "Mnemonic filled into the Announce form (Create tab) and Claim form (Builder tab).",
+                    });
                   }}
                 >
                   Use
                 </button>
-                <button onClick={() => navigator.clipboard.writeText(mnemonic)}>
+                <button
+                  aria-label={`Copy mnemonic for participant ${index + 1}`}
+                  onClick={() => {
+                    navigator.clipboard.writeText(mnemonic);
+                    setToast({
+                      id: randomId(),
+                      tone: "success",
+                      title: "Mnemonic copied",
+                      message: `Demo participant ${index + 1} mnemonic is on the clipboard.`,
+                    });
+                  }}
+                >
                   <Copy size={14} />
                 </button>
               </div>

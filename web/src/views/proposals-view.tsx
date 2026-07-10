@@ -20,18 +20,24 @@ export function ProposalsView({ model }: ProposalsViewProps) {
 
   return (
     <section className="proposal-stack">
-      <section className="summary-grid">
-        <Metric label="Spendable proposals" value={proposalGroups.length.toString()} />
-        <Metric label="Spendable votes" value={spendableVotes.length.toString()} />
-        <Metric label="Ready" value={proposalGroups.filter((item) => item.ready).length.toString()} />
-        <Metric label="Threshold" value={(session?.threshold ?? "-").toString()} />
-      </section>
+      {session && (
+        <section className="summary-grid">
+          <Metric label="Spendable proposals" value={proposalGroups.length.toString()} />
+          <Metric label="Spendable votes" value={spendableVotes.length.toString()} />
+          <Metric label="Ready" value={proposalGroups.filter((item) => item.ready).length.toString()} />
+          <Metric label="Threshold" value={session.threshold.toString()} />
+        </section>
+      )}
 
       {proposalGroups.length === 0 ? (
         <div className="empty-state">
           <div>
             <strong>No spendable proposals discovered</strong>
-            <span>Scan after votes are published. Spent or invalidated proposals are hidden.</span>
+            <span>
+              {session
+                ? "Scan after votes are published. Spent or invalidated proposals are hidden."
+                : "Proposals appear once the session is ready and votes have been published on-chain."}
+            </span>
           </div>
           <button onClick={rescan} disabled={!session || !info || scan.status === "scanning"}>
             {scan.status === "scanning" ? (
@@ -87,7 +93,12 @@ export function ProposalsView({ model }: ProposalsViewProps) {
                     </span>
                     <strong>{middle(item.signatureHex, 10)}</strong>
                     {item.explorerUrl && (
-                      <a href={item.explorerUrl} target="_blank" rel="noreferrer">
+                      <a
+                        href={item.explorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`View participant ${item.participantIndex + 1} vote in explorer`}
+                      >
                         <ExternalLink size={14} />
                       </a>
                     )}

@@ -127,6 +127,34 @@ a {
   gap: 4px;
 }
 
+:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 1px;
+}
+
+.hint {
+  margin: 0;
+  color: #555;
+  font-size: 12px;
+}
+
+.inline-link {
+  display: inline;
+  min-height: 0;
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.inline-link:hover:not(:disabled) {
+  background: none;
+  color: #000;
+}
+
 code {
   font-family: monospace;
   font-size: 12px;

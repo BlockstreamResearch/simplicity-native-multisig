@@ -75,6 +75,12 @@
   align-items: center;
 }
 
+.asset-cell {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
 .icon-only {
   width: 34px;
   padding: 0;

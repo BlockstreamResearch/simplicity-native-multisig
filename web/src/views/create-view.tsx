@@ -36,6 +36,7 @@ export function CreateView({ model }: CreateViewProps) {
     publishAnnouncement,
     refreshAnnouncements,
     session,
+    setActiveTab,
     setAnnouncementMnemonic,
     setAnnouncementStake,
     setParticipantKeys,
@@ -70,13 +71,18 @@ export function CreateView({ model }: CreateViewProps) {
 
       <Panel title="Create multisig" icon={<KeyRound size={16} />}>
         <label>
-          Threshold
+          Threshold (of {participantKeys.length} participants)
           <input
             type="number"
             min={1}
-            max={3}
+            max={participantKeys.length}
             value={threshold}
-            onChange={(event) => setThreshold(Number(event.target.value))}
+            onChange={(event) => {
+              const raw = Math.round(Number(event.target.value));
+              setThreshold(
+                Math.min(participantKeys.length, Math.max(1, Number.isFinite(raw) ? raw : 1)),
+              );
+            }}
           />
         </label>
         {participantKeys.map((key, index) => (
@@ -146,7 +152,7 @@ export function CreateView({ model }: CreateViewProps) {
           />
         </label>
         <label>
-          Dust amount
+          Dust amount (sats)
           <input
             type="number"
             min={1}
@@ -171,6 +177,18 @@ export function CreateView({ model }: CreateViewProps) {
           {isPublishingAnnouncement ? <Loader2 className="spin" size={15} /> : <Radio size={15} />}
           {isPublishingAnnouncement ? "Publishing" : "Publish announcement"}
         </button>
+        {!activeMultisigDescriptor ? (
+          <p className="hint">Create or load a multisig descriptor first.</p>
+        ) : !announcementMnemonic.trim() ? (
+          <p className="hint">Paste the participant mnemonic to announce.</p>
+        ) : (
+          <p className="hint">
+            Publishing sends an on-chain transaction paid from this wallet — it needs L-BTC first.{" "}
+            <button className="inline-link" onClick={() => setActiveTab("faucet")}>
+              Fund it from the faucet
+            </button>
+          </p>
+        )}
       </Panel>
 
       <Panel
@@ -212,7 +230,12 @@ export function CreateView({ model }: CreateViewProps) {
                   <>
                     <code>{middle(announcement.participantDescriptor, 28)}</code>
                     {announcement.explorerUrl && (
-                      <a href={announcement.explorerUrl} target="_blank" rel="noreferrer">
+                      <a
+                        href={announcement.explorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`View participant ${participant.index + 1} announcement in explorer`}
+                      >
                         <ExternalLink size={14} />
                       </a>
                     )}

@@ -1,4 +1,4 @@
-import { ExternalLink, Radio } from "lucide-react";
+import { ExternalLink, Loader2, Radio, RefreshCcw } from "lucide-react";
 import type { AppModel, TransactionSourceFilter } from "../app-model";
 import { EmptyRow, Metric, Panel } from "../components";
 import { middle } from "../lib/format";
@@ -16,7 +16,12 @@ const transactionTimeFormat = new Intl.DateTimeFormat("en", {
 
 export function TransactionsView({ model }: TransactionsViewProps) {
   const {
+    actionBusy,
+    activeMultisigDescriptor,
+    info,
+    rescan,
     scan,
+    session,
     setTransactionQuery,
     setTransactionSource,
     transactionQuery,
@@ -25,16 +30,42 @@ export function TransactionsView({ model }: TransactionsViewProps) {
     voteTxids,
   } = model;
 
+  const mempoolCount = scan.transactions.filter((tx) => tx.height === undefined).length;
+
   return (
     <section className="transaction-stack">
-      <section className="summary-grid">
-        <Metric label="All tx" value={scan.transactions.length.toString()} />
-        <Metric label="Shown" value={visibleTransactions.length.toString()} />
-        <Metric label="Votes" value={scan.votes.length.toString()} />
-        <Metric label="Participant UTXOs" value={scan.ownerUtxos.length.toString()} />
-      </section>
+      {scan.transactions.length > 0 && (
+        <section className="summary-grid">
+          <Metric label="All tx" value={scan.transactions.length.toString()} />
+          <Metric label="Shown" value={visibleTransactions.length.toString()} />
+          <Metric label="Votes" value={scan.votes.length.toString()} />
+          <Metric label="In mempool" value={mempoolCount.toString()} />
+        </section>
+      )}
 
-      <Panel title="Transactions" icon={<Radio size={16} />} wide>
+      <Panel
+        title="Transactions"
+        icon={<Radio size={16} />}
+        wide
+        actions={
+          <button
+            onClick={rescan}
+            disabled={
+              (!session && !activeMultisigDescriptor) ||
+              !info ||
+              scan.status === "scanning" ||
+              actionBusy
+            }
+          >
+            {scan.status === "scanning" ? (
+              <Loader2 className="spin" size={15} />
+            ) : (
+              <RefreshCcw size={15} />
+            )}
+            Scan
+          </button>
+        }
+      >
         <div className="transaction-toolbar">
           <div className="segmented">
             {(["all", "multisig", "participants", "votes"] as TransactionSourceFilter[]).map(
@@ -76,7 +107,14 @@ export function TransactionsView({ model }: TransactionsViewProps) {
             </thead>
             <tbody>
               {visibleTransactions.length === 0 ? (
-                <EmptyRow colSpan={6} label="No wallet transactions discovered" />
+                <EmptyRow
+                  colSpan={6}
+                  label={
+                    session
+                      ? "No wallet transactions discovered — scan to refresh."
+                      : "Transactions appear after the session is ready: they cover the multisig covenant, announced participants, and votes."
+                  }
+                />
               ) : (
                 visibleTransactions.map((tx) => (
                   <tr key={tx.txid}>
@@ -91,10 +129,15 @@ export function TransactionsView({ model }: TransactionsViewProps) {
                     <td>
                       {tx.timestamp
                         ? transactionTimeFormat.format(new Date(tx.timestamp * 1000))
-                        : "mempool"}
+                        : "pending"}
                     </td>
                     <td>
-                      <a href={tx.explorerUrl} target="_blank" rel="noreferrer">
+                      <a
+                        href={tx.explorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`View transaction ${middle(tx.txid, 6)} in explorer`}
+                      >
                         <ExternalLink size={15} />
                       </a>
                     </td>

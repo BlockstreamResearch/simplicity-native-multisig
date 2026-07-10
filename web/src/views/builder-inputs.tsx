@@ -77,6 +77,11 @@ export function ClaimParticipantPanel({ icon, model }: BuilderPanelProps) {
       <button className="primary" onClick={claim} disabled={!session || !claimMnemonic}>
         Verify ownership
       </button>
+      {!claimMnemonic && (
+        <p className="hint">
+          Paste the mnemonic of an announced participant to unlock voting and publishing.
+        </p>
+      )}
       {claimed && (
         <div className="claim-box">
           <Check size={16} />

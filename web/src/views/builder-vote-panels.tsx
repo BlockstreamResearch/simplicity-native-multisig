@@ -54,6 +54,8 @@ export function VotesPanel({ icon, model }: BuilderPanelProps) {
           step={1}
           value={voteStake}
           disabled={actionBusy}
+          aria-label="Vote output in satoshis"
+          title="Vote output (sats)"
           onChange={(event) => setVoteStake(amountFromInput(event.target.value))}
         />
         <button
@@ -105,7 +107,12 @@ export function VotesPanel({ icon, model }: BuilderPanelProps) {
               <div className="row-actions">
                 {!proposal && <button onClick={() => loadProposalFromVote(item)}>Use</button>}
                 {item.explorerUrl && (
-                  <a href={item.explorerUrl} target="_blank" rel="noreferrer">
+                  <a
+                    href={item.explorerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="View vote transaction in explorer"
+                  >
                     <ExternalLink size={14} />
                   </a>
                 )}
@@ -244,7 +251,12 @@ export function ExecuteSpendPanel({ icon, model }: BuilderPanelProps) {
                   : "No vote UTXO"}
               </small>
               {item.explorerUrl && (
-                <a href={item.explorerUrl} target="_blank" rel="noreferrer">
+                <a
+                  href={item.explorerUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`View participant ${item.participantIndex + 1} vote in explorer`}
+                >
                   <ExternalLink size={14} />
                 </a>
               )}
