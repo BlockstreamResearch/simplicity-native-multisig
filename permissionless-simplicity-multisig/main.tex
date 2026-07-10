@@ -56,50 +56,43 @@
 % Absorb overfull boxes in prose that carries long typewriter identifiers.
 \emergencystretch=4em
 
-\title{Permissionless Multisig using Simplicity}
-\date{\today}
+\title{Simplicity Multisig}
+
+\author{Kyrylo Riabov, Artem Chystiakov}
+
+\date{July 2026}
 
 \begin{document}
 
   \maketitle
 
   \begin{abstract}
-    We propose a practical and permissionless multisig protocol for Liquid that utilizes onchain
-    communication for the exchange of messages and signed intents.
-    The protocol leverages Simplicity language to allow multisig users to supplement their approval
-    signatures with custom compliance and policy covenants without requiring a third-party authorizer.
+    We propose a practical and permissionless multisig protocol that utilizes on-chain communication for the exchange of messages and signed intents between the signers.
+    The described protocol leverages Simplicity language to allow multisig users to supplement their approval
+    signatures with custom compliance and policy covenants without requiring a third-party service or authority.
+    The proposed multisig can be implemented on Liquid and, in the future, on Bitcoin, once and if Simplicity becomes available there.
   \end{abstract}
 
   \section{Introduction}
 
-  In today’s Bitcoin ecosystem, managing a multisig wallet generally assumes that
-  the participants have access to some communication channel.
-  Signatures or partially signed transactions must be exchanged through a coordination server,
-  chat, or another out-of-band medium.
+  In today's Bitcoin ecosystem, multisigs are one of the most widely-used and critical logical structures, from the
+  \texttt{OP\_CHECKMULTISIG} opcode \cite{bip11} and deterministic P2SH multisig
+  addresses \cite{bip67}, to the Taproot script validation rules \cite{bip341,bip342}, MuSig2 \cite{musig2}, and FROST \cite{frost}.
+  However, managing a multisig wallet generally assumes that participants have access to some communication channel.
+  Signatures or partially signed transactions are expected to be exchanged through a coordination server, chat, or other out-of-band medium.
   Each of these dependencies must remain available whenever the funds need to move.
 
   Our goal is to reduce the dependencies that participants need in order to communicate.
-  In the protocol proposed here, the whole setup consists of gathering the participants' public keys
-  and descriptors and agreeing on a threshold.
+  In the protocol proposed here, the whole setup consists of gathering the participants' public keys and descriptors and agreeing on a threshold.
   Once this is done, the multisig is ready to be used.
-  After setup, the only communication layer we assume is the blockchain itself,
-  maximizing the reliability and availability of the coordination channel.
+  After setup, the only communication layer that we assume is the blockchain itself, maximizing the reliability and availability of the coordination channel.
 
-  The second part of the protocol defines how, and under what conditions, the multisig funds are spent.
-  With the introduction of Simplicity and Liquid \cite{simplicity,liquid}, we are now capable of
-  transaction introspection in much greater detail in comparison to regular Bitcoin Script.
+  The second part of the protocol defines how and under what conditions the multisig funds are spent.
+  With the introduction of Simplicity on Liquid \cite{simplicity,liquid}, we are now able to introspect transactions in much greater detail compared to the regular Bitcoin Script.
 
-  Multisigs are one of the most common logical structures in the Bitcoin ecosystem, from the
-  \texttt{OP\_CHECKMULTISIG} opcode \cite{bip11} to deterministic pay-to-script-hash multisig
-  addresses \cite{bip67} and the Taproot script validation rules \cite{bip341,bip342}.
-  Approaches like FROST \cite{frost} optimize the amount of fees, which is out of scope for this
-  paper.
-
-  Utilizing Simplicity, participants can supplement their approval signatures with custom compliance
-  and policy covenants without requiring a third-party authorizer.
-  Inside the script, a participant can enforce whitelists or blacklists of destinations, or attach a
-  time constraint so that a signature given today can only be spent tomorrow and onward.
-  A multisig schemes mentioned above cannot enforce such a promise.
+  Using Simplicity, participants can aid their approval signatures with custom compliance and policy covenants that impose certain checks and conditions on the transaction structure, without requiring a third-party authority.
+  Inside the script, a participant can enforce whitelists or blacklists of destinations or attach a time constraint so that a signature given today can only be spent tomorrow and onward.
+  Multisig schemes mentioned above cannot enforce such a promise.
   Once a signature is handed over, nothing prevents it from being used immediately.
 
   \section{On-Chain Coordination}
@@ -108,14 +101,13 @@
   \subsection{Participant Discovery}
   \label{sec:discovery}
 
-  Everything a participant publishes after setup must be discoverable by the other participants.
-  For that purpose we utilize descriptors \cite{bip380}.
+  After multisig setup, every vote a participant broadcasts must be discoverable by the other participants.
+  For that purpose, we utilize descriptors \cite{bip380}.
 
-  When participants lock funds to the multisig, each participant also announces their own descriptor alongside it.
-  Concretely, the participant makes a dust transfer to the multisig address and attaches
-  \texttt{OP\_RETURN} outputs carrying an announcement record \cite{native-multisig-announcement}.
-  The announcement payload contains the participant index, the participant's x-only public key, the
-  descriptor itself, and a BIP-340 signature over
+  When participants confirm joining the multisig, each participant announces their own descriptor alongside the confirmation.
+  Concretely, the participant makes a dust transfer to the multisig address and attaches \texttt{OP\_RETURN} outputs carrying an announcement record \cite{native-multisig-announcement}.
+  The confirmation payload contains the participant index, the participant's x-only public key, the
+  descriptor itself, and a BIP-340 signature over the message:
 
   \begin{equation}
     \mathrm{SHA256}(
@@ -128,53 +120,32 @@
     ).
   \end{equation}
 
-  The signature binds the descriptor to this exact multisig configuration, so an announcement can
-  neither be forged by a non-participant nor replayed against a different multisig.
-  Announced descriptors must be public.
-  Descriptors carrying blinding material MUST not be shared due to confidentiality reasons.
+  The signature binds the descriptor to this exact multisig configuration, so the confirmation can neither be forged by a non-participant nor replayed against a different multisig.
+  Announced descriptors must be public, and descriptors carrying blinding material MUST not be shared due to confidentiality reasons.
 
-  We additionally require that every vote published by a multisig participant is published from this announced descriptor.
+  We additionally require that every vote published by a multisig participant be broadcast from this announced descriptor.
   This is what allows the discovery of votes and signed intent proposals.
   Scanning the multisig address yields the descriptors, and scanning the descriptors yields the votes.
-  For discovery to be complete, the announced descriptor must cover every script chain from which
-  the participant's wallet funds votes; a scanner widens a single external chain to the standard
-  receive-and-change multipath.
-
-  Publishing the descriptor deliberately forfeits script-level privacy: anyone can now watch the
-  participant's wallet transactions.
-  It does not forfeit the confidentiality of the participant's funds.
-  On Elements chains, wallet software generally scans only confidential descriptors, so a scanner
-  turns the announced public descriptor into a watch-only discovery wallet by attaching a blinding
-  key derived per ELIP-151 \cite{elip151}.
-  ELIP-151 derives the blinding key by hashing the ordinary descriptor, which makes the ordinary
-  descriptor itself the viewing secret.
-  Because the announced descriptor is public by construction, the derived viewing key is public as
-  well, and the wrapped descriptor MUST be treated as watch-only.
-  It must never be used to derive receiving addresses, since amounts received by such addresses
-  would be readable by anyone holding the announcement.
 
   \subsection{Publishing Votes}
   \label{sec:votes}
 
   The core assumption of this step is that all vote scripts are known to every user.
-  If a participant uses a custom policy covenant, its source file must be publicly available, so that
-  any other participant can compile it and reproduce the same executable leaf.
+  If a participant uses a custom policy covenant, its source file must be publicly available so that any other participant can compile it and reproduce the same executable leaf.
   We assume that all source files are publicly available and known to the users.
 
   With that in place, any participant can create a proposal.
-  The participant selects multisig UTXOs, lists the desired outputs, and signs the resulting message
-  (Section~\ref{sec:compliance}).
-  The vote is then created from the participant's announced descriptor as a single transaction that
-  does two things:
+  The participant selects multisig UTXOs, proposes the desired outputs, and signs the resulting message (Section~\ref{sec:compliance}).
+  The vote is then created from the participant's announced descriptor as a single transaction that does two things:
 
   \begin{enumerate}
-    \item it locks a dust amount to the vote covenant address. See  (Appendix~\ref{app:construction}) for more details about how vote address is constructed;
-    \item it attaches, in \texttt{OP\_RETURN} outputs, enough information for other participants to
+    \item It locks a dust amount to the vote covenant address. See  (Appendix~\ref{app:construction}) for more details about how the vote address is constructed;
+    \item It attaches, in \texttt{OP\_RETURN} outputs, enough information for other participants to
     reconstruct the proposed transaction byte for byte and recompute the same signed message
     \cite{native-multisig-onchain-encoder}.
   \end{enumerate}
 
-  Because the vote is published from an announced descriptor, it is trivially discoverable.
+  Since the vote is published from an announced descriptor, it is trivially discoverable.
   A scanner walks the descriptors collected in Section~\ref{sec:discovery}, decodes every candidate
   transaction, recomputes the message hash, and verifies the embedded signature against the
   participant keys.
@@ -184,21 +155,18 @@
   \subsection{Wire Format}
   \label{sec:wire}
 
-  Both announcements (magic \texttt{SIMPANNC}) and vote proposals (magic \texttt{SIMPVOTE}) use the
-  same chunked record framing.
+  Both mulitisg joining confirmation announcements (magic \texttt{SIMPANNC}) and vote proposals (magic \texttt{SIMPVOTE}) use the same chunked record framing.
   Every record is a single \texttt{OP\_RETURN} output whose script carries one data push of at most 75 bytes.
   Each record starts with a 10-byte header: an 8-byte magic, a 1-byte version (currently~1), and a 1-byte record kind.
 
   The payload that does not fit into one record is split into chunks of at most 63 bytes.
   Chunks are packed back to back without padding.
   Only the final chunk may be shorter.
-  A metadata record announces how many chunks to expect, the total payload length, and a SHA-256
-  checksum of the reassembled payload.
-  For vote proposals, the participant signature travels in its own fixed-size record, so an executor
-  can recover the proposal and the signature independently.
+  A metadata record announces how many chunks to expect, the total payload length, and a SHA-256 checksum of the reassembled payload.
+  For vote proposals, the participant's signature travels in its own fixed-size record, so an executor can recover the proposal and the signature independently.
 
   Figure~\ref{fig:vote-records} shows the three vote record layouts, and
-  Figure~\ref{fig:annc-payload} shows the announcement record layouts together with its reassembled payload.
+  Figure~\ref{fig:annc-payload} shows the confirmation announcement record layouts together with its reassembled payload.
 
   \begin{figure}[ht]
     \centering
@@ -289,10 +257,22 @@
     \label{fig:annc-payload}
   \end{figure}
 
-  For vote proposals, the encoded payload is the fully serialized proposal transaction.
-  Decoding therefore reconstructs the exact transaction shape, and recomputing the base message over
-  it (Appendix~\ref{app:message}) yields the same hash the participant signed.
+  For vote proposals, the encoded payload (chunk data) is the fully serialized proposal transaction.
+  Decoding therefore reconstructs the exact transaction shape, and recomputing the base message over it (Appendix~\ref{app:message}) yields the same hash the participant signed.
   Figure~\ref{fig:chunking} visualizes the encoding of one proposal.
+
+  A decoder accepts a transaction only if all of the following hold: there is exactly one metadata
+  record (for votes, exactly one signature record), no chunk index is duplicated or out of
+  bounds, every chunk is present, the concatenated length equals the announced total length, and the
+  SHA-256 checksum matches.
+  Anything else is rejected, so a malformed or partially confirmed carrier transaction can never
+  produce a plausible-looking proposal.
+
+  \paragraph{Current limitation.}
+  The protocol currently supports only unconfidential transactions on Liquid.
+  Confidential transport would require exchanging blinding material between participants, encrypting
+  the carried payload, and carrying substantially larger data in a medium where every byte is paid for.
+  We consider this a natural follow-up work and keep it out of scope in this version.
 
   \begin{figure}[ht]
     \centering
@@ -331,32 +311,35 @@
     \label{fig:chunking}
   \end{figure}
 
-  A decoder accepts a transaction only if all of the following hold: there is exactly one metadata
-  record (for votes, exactly one signature record), no chunk index is duplicated or out of
-  bounds, every chunk is present, the concatenated length equals the announced total length, and the
-  SHA-256 checksum matches.
-  Anything else is rejected, so a malformed or partially confirmed carrier transaction can never
-  produce a plausible-looking proposal.
-
-  \paragraph{Current limitation.}
-  The protocol currently supports only unconfidential transactions on Liquid.
-  Confidential transport would require exchanging blinding material between participants, encrypting
-  the carried payload, and carrying substantially larger data in a medium where every byte is paid for.
-  We consider this a natural follow-up work and keep it out of scope in this version.
-
   \subsection{Happy Path: a 2-of-3 Walkthrough}
   \label{sec:happy-path}
 
-  Figure~\ref{fig:sequence} assembles the pieces into the full happy path of a 2-of-3 multisig, from creation to spend.
+  Figure~\ref{fig:sequence} assembles the pieces into the full happy flow of a 2-of-3 multisig, from creation to spend.
   Alice, Bob, and Carol perform the one-time setup.
   Alice proposes a spend, Bob agrees, and Alice executes it.
   No message other than a Liquid transaction is exchanged after setup.
 
   The final spend follows the transaction shape enforced by the covenants and exercised by the
-  regtest scenarios \cite{native-multisig-regtest}: multisig inputs occupy the input prefix starting
-  at index zero, vote inputs come directly after the multisig input window, and proposed outputs
-  start at output index zero, followed by the fee.
+  regtest scenarios \cite{native-multisig-regtest}: multisig inputs occupy the input prefix starting at index zero, vote inputs come directly after the multisig input window, and proposed outputs start at output index zero, followed by the fee.
   The dust amounts held by the vote UTXOs are used as the transaction fee \cite{native-multisig-spend}.
+
+  \section{Covenant-Enforced Compliance}
+  \label{sec:compliance}
+
+  The multisig itself is a Simplicity covenant \cite{native-multisig-multisig}, and each approval is a \emph{vote}.
+
+  A participant does not sign a whole transaction.
+  Instead, the participant signs the transaction shape that includes the multisig inputs and the proposed outputs, that are bound to the hash of the executable policy leaf (vote covenant).
+
+  The multisig covenant reconstructs the vote Taproot tree from the vote leaf hash and the signature, and asserts that an input with exactly this script is present in the spending transaction.
+  If the policies are changed, signature verification fails.
+
+  The executable leaf can contain any check that Simplicity can express: whitelist and blacklist checks
+  on destination scripts, amount limits, compliance rules, pay-to-use conditions, or a timelock that
+  makes the signature valid only from tomorrow onward.
+
+  The message construction, the vote Taproot tree, threshold checks, input and
+  output windows, and the handling of uncounted vote inputs, together with the corresponding code snippets and security considerations are given in Appendix~\ref{app:construction}.
 
   \begin{figure}[p]
     \centering
@@ -413,73 +396,48 @@
     % verification note
     \node[note, draw, text width=3.4cm, inner sep=5pt] at (\L-0.6,-13.4)
       {covenants verify threshold, signatures, and vote script hashes};
-    \node[note] at (\C/2,-13.4) {funds move; no off-chain message was needed};
+    \node[note] at (\C/2,-13.4) {funds move; no off-chain messages were needed};
     \end{tikzpicture}
-    \caption{Happy path of a 2-of-3 multisig: creation, announcements, proposal, second vote, and
+    \caption{Happy flow of a 2-of-3 multisig: creation, announcements, proposal, second vote, and
     the final spend.
     After the one-time setup, every arrow is a Liquid transaction or a chain scan.}
     \label{fig:sequence}
   \end{figure}
 
-  \section{Covenant-Enforced Compliance}
-  \label{sec:compliance}
-
-  The multisig itself is a Simplicity covenant \cite{native-multisig-multisig}, and each approval is a \emph{vote}.
-
-  A participant does not sign a whole transaction.
-  Instead, the participant signs the transaction shape that includes the multisig inputs and the proposed
-  outputs, that are bound to the hash of the executable policy leaf.
-
-  The multisig covenant reconstructs the vote Taproot tree from the leaf hash and the signature, and
-  asserts that an input with exactly this script is present in the spending transaction.
-  If the policies are changed, signature verification fails.
-
-  The executable leaf can contain any check Simplicity can express: whitelist and blacklist checks
-  on destination scripts, amount limits, compliance rules, pay-to-use conditions, or a timelock that
-  makes the signature valid only from tomorrow onward.
-
-  The message construction, the vote Taproot tree, threshold checks, input and
-  output windows, and the handling of uncounted vote inputs, together with the corresponding code
-  snippets and security considerations, are given in Appendix~\ref{app:construction}.
-
   \section{Bitcoin Compatibility}
 
-  Even though the multisig is based on Simplicity, there is ongoing work to add Simplicity to Bitcoin
-  Inquisition \cite{bitcoin-inquisition-binana-simplicity,bitcoin-inquisition-simplicity-impl}.
+  Even though the multisig is based on Simplicity, there is ongoing work to add Simplicity to Bitcoin Inquisition \cite{bitcoin-inquisition-binana-simplicity,bitcoin-inquisition-simplicity-impl}.
 
-  All core jets that were used in the current multisig will be present in the Bitcoin version as well.
+  All core jets that were used in the current multisig are present in the Bitcoin version as well.
   Therefore, this solution is Bitcoin-compatible if Simplicity is ever added to Bitcoin itself.
 
   \section{Formal Verification}
 
-  The work on formal verification of the contract is ongoing.
-  Details of it will be mentioned when it is done.
+  The work on formal verification of the multisig covenants is ongoing.
+  Details will be mentioned separately when it is done.
 
   \appendix
 
   \section{Multisig Construction and Security Considerations}
   \label{app:construction}
 
-  This appendix contains the full construction of the Simplicity multisig and its security
-  considerations, including the relevant code snippets from the reference implementation.
+  This appendix contains the full construction of the Simplicity multisig and its security considerations, including the relevant code snippets from the reference implementation.
 
   \subsection{Message Construction}
   \label{app:message}
 
   The most sensitive part is the message that is signed by every participant.
 
-  In the basic version of the multisig \cite{native-multisig-multisig}, the message that is verified
-  by users includes:
+  In the reference version of the multisig \cite{native-multisig-multisig}, the message that is verified by users includes:
 
   \begin{enumerate}
     \item \texttt{jet::input\_hash(0..=i)} \cite{simplicity-input-hash}, where $i$ is the last multisig input;
     \item \texttt{jet::output\_hash(0..=j)} \cite{simplicity-output-hash}, where $j$ is the last desired output;
-    \item policies that must be validated before allowing the use of the signature.
+    \item Policies that must be validated before allowing the use of the signature.
   \end{enumerate}
 
-  Important note: in this model, not the whole transaction is signed.
-  Therefore, when a participant creates the message, the participant must ensure that, for example,
-  when 1 LBTC is spent, all outputs that should be constrained are in the range $0..=j$.
+  \textbf{Important note:} in this model, only a part of the transaction is signed.
+  Therefore, when a participant creates the message, they must ensure that, for example, when 1 LBTC is spent, all outputs that should be constrained are in the range $0..=j$.
 
   As a result, the base message is:
 
@@ -493,8 +451,7 @@
     ).
   \end{equation}
 
-  Every participant signs a message that also contains the executable leaf hash, which represents
-  the set of policies:
+  Every participant signs a message that also contains the executable leaf hash, which represents the set of their policies:
 
   \begin{equation}
     \mathrm{participant\_message}
@@ -508,8 +465,7 @@
 
   \subsection{Programmable Signature}
 
-  Below is a diagram of the Taproot tree, which generally represents a Taproot output that includes
-  Simplicity with TapData included \cite{bip341,simplicity-state}.
+  Below is a diagram of a Taproot tree, which generally represents a Taproot output that includes Simplicity with stateful TapData \cite{bip341,simplicity-state}.
 
   \begin{figure}[ht]
     \centering
@@ -554,20 +510,19 @@
     \end{aligned}
   \end{equation}
 
-  The executable leaf is the left part of the tree.
+  The executable leaf (vote) is the left branch of the tree.
+  This branch contains all the Simplicity checks of the vote, for example enforcing that one of the outputs sends Dave 0.1 BTC.
+
   Simplicity's Taproot integration is described in the Simplicity Taproot work
   \cite{simplicity-taproot-universal-sighashes}.
-
-  This part contains all checks that Simplicity can perform, for example checking that one of the
-  outputs sends Alice 0.1 BTC.
 
   The implementation of the vote contract is in \texttt{vote.simf} \cite{native-multisig-vote}.
 
   The right branch contains the signature part.
-  This part is needed by the multisig covenant to verify that the correct ``vote'' was included
+  This branch is checked by the multisig covenant to verify that the correct ``vote'' was included
   \cite{native-multisig-multisig}.
 
-  Because of the UTXO nature of Liquid, every vote would contain either a dust amount of LBTC or a throwaway token.
+  Due to the UTXO nature of Liquid, every vote will contain either a dust amount of LBTC or a throwaway token.
   The way the vote is created and discovered on-chain is described in Section~\ref{sec:coordination}.
 
   \subsection{Threshold Checks}
@@ -597,15 +552,14 @@ assert!(jet::le_32(threshold, 3));
 // Otherwise, calculate the expected vote script hash and check that it matches.
 // Then check the signature against participants[i].
 // This action is performed for all participants.
-// Finally, check that the number of non-None signatures is greater than or equal to the threshold.
+// Finally, check that the number of non-None signatures is >= the threshold.
 let (valid_votes, next_vote_input_index): (u32, u32) =
   count_votes(participants, votes, multisig_input_count, base_message);
 assert!(jet::le_32(threshold, valid_votes));
   \end{lstlisting}
 
-  With the last one, we iterate over provided user inputs.
-  It means that to spend the multisig input, it should have, for example, at least two votes if the
-  threshold is two.
+  With the last check, we iterate over provided user inputs.
+  It means that to spend the multisig input, it should have, for example, at least two votes if the threshold is two.
 
   This constraint is related to the following check:
 
@@ -617,9 +571,8 @@ ensure_zero_bit(carry);
 assert!(jet::le_32(minimum_inputs_num, jet::num_inputs()));
   \end{lstlisting}
 
-  This checks that the transaction has enough inputs to actually spend the transaction.
-  The logic is that, for example, to spend a 2-of-3 multisig, you need at least three inputs: one for
-  the multisig and two for the vote covenants.
+  This checks that the transaction has enough inputs to actually spend the multisig.
+  The logic is that, for example, to spend a 2-of-3 multisig, you need at least three inputs: one for the multisig and two for the vote covenants.
 
   \subsection{Multisig Input and Output Windows}
 
@@ -680,8 +633,7 @@ fn add_multisig_input_hash(acc: (Ctx8, u32), current_script_hash: u256, index: u
 }
   \end{lstlisting}
 
-  The covenant verifies that if a multisig input is present, it is spent in the window from zero up
-  to the last multisig input.
+  The covenant verifies that if a multisig input is present, it is spent in the window from zero up to the last multisig input.
   The covenant also checks that the current multisig input is included in the signed base message:
 
   \begin{lstlisting}
@@ -694,8 +646,7 @@ assert!(jet::le_32(1, multisig_input_count));
 assert!(jet::lt_32(jet::current_index(), multisig_input_count));
   \end{lstlisting}
 
-  The second part that is included in the base message is the outputs.
-  During construction of the base message, they are included in the base message:
+  The second part that is included in the base message are the outputs:
 
   \begin{lstlisting}
 // Build the base message that participants sign.
@@ -723,8 +674,7 @@ fn base_message_and_input_count(total_proposed_outputs: u16) -> (u256, u32) {
   \texttt{vote\_executable\_leaf\_hash}.
   This leads to the last check: vote execution checks.
 
-  To check that the vote was included in the transaction, the multisig needs to check that an input
-  with the desired policies is included.
+  To check that the vote was included in the transaction, the multisig needs to check that an input with the desired policies is included.
 
   \begin{lstlisting}
 // This function verifies that the proved signature is committed on-chain
@@ -762,7 +712,7 @@ fn verify_vote_input(
 }
   \end{lstlisting}
 
-  To do that, we reconstruct the Merkle tree and do the last assert:
+  To do that, we reconstruct the Merkle tree and perform the last assertion:
 
   \begin{lstlisting}
 assert!(jet::eq_256(
@@ -771,24 +721,18 @@ assert!(jet::eq_256(
 ));
   \end{lstlisting}
 
-  This makes clear why the expected vote script hash is included in the message that is signed by
-  the participant and how the multisig enforces a programmable check.
+  This makes clear why the expected vote script hash is included in the message that is signed by the participant and how the multisig enforces a programmable check.
   If the policies are changed, the signature verification fails.
-  Also, by Bitcoin consensus rules, when an input is included in the transaction that is being
-  spent, the proper witness should be provided.
+  Also, by Bitcoin consensus rules, when an input is included in the transaction that is being spent, the proper witness should be provided.
 
   \subsection{Uncounted Vote Inputs}
 
-  There is a caveat on how uncounted votes can be spent; see \texttt{vote.simf} for more details
-  \cite{native-multisig-vote}.
+  There is a caveat on how uncounted votes can be spent; see \texttt{vote.simf} for more details \cite{native-multisig-vote}.
 
-  In a nutshell, during a 1-of-3 multisig execution, all three votes can be provided, but only one of
-  them is needed to be checked.
+  In a nutshell, during a 1-of-3 multisig execution, all three votes can be provided, but only one of them is needed to be checked.
   From the multisig perspective, this is fine because the threshold is met.
-  However, the value that the vote holds can be moved to any address if it is not constrained by the
-  message that is signed.
+  However, the value that the vote holds can be moved to any address if it is not constrained by the message that is signed.
   Dealing with this issue is out of scope of this paper.
-  Enough information and a mitigation solution are mentioned in the code.
 
   \bibliographystyle{unsrt}
   \bibliography{references}
